@@ -1,3 +1,6 @@
+local BC = import('/mods/DilliDalli/lua/AI/DilliDalli/BaseController.lua')
+local IM = import('/mods/DilliDalli/lua/AI/DilliDalli/IntelManager.lua')
+
 Brain = Class({
     OnCreate = function(self,aiBrain)
         self.aiBrain = aiBrain
@@ -7,10 +10,36 @@ Brain = Class({
     
     Initialise = function(self)
         -- Allow sim setup and initialisation
-        WaitSeconds(3)
+        WaitSeconds(5)
         -- ...
+        self.base = BC.CreateBaseController(self)
+        self.intel = IM.CreateIntelManager(self)
         LOG("DilliDalli Brain ready...")
-        
+        bo = self.intel:PickBuildOrder()
+        for _, v in bo.mobile do
+            self.base:AddMobileJob(v)
+        end
+        for _, v in bo.factory do
+            self.base:AddFactoryJob(v)
+        end
+        self.base:Run()
+    end,
+    
+    IsAlive = function(self)
+        return self.aiBrain.Result ~= "defeat"
+    end,
+    
+    GetEngineers = function(self)
+        local units = self.aiBrain:GetListOfUnits(categories.MOBILE*categories.ENGINEER,false,true)
+        local n = 0
+        local engies = {}
+        for _, v in units do
+            if not v.CustomData or ((not v.CustomData.excludeEngie) and (not v.CustomData.engieAssigned)) then
+                n = n+1
+                engies[n] = v
+            end
+        end
+        return engies
     end,
 
     ForkThread = function(self, fn, ...)
