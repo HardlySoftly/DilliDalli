@@ -23,4 +23,10 @@ translate = {
         CYBRAN = "urb1101",
         SERAPHIM = "xsb1101",
     },
+    EngineerT1 = {
+        AEON = "ual0105",
+        UEF = "uel0105",
+        CYBRAN = "url0105",
+        SERAPHIM = "xsl0105",
+    },
 }

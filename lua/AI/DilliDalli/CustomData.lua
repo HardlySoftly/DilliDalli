@@ -6,6 +6,12 @@
     
     CustomData.engieAssigned
         True while this engineer is assigned to a job
+        
+    CustomData.excludeFac
+        If true, exclude this factory from being assigned to make things
+    
+    CustomData.facAssigned
+        True while this factory is assigned to a job
 
 
 

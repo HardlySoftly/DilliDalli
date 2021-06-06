@@ -25,7 +25,7 @@ function FindMarkerLocation(aiBrain,intelManager,blueprint,location,markerType)
     return bestMarker.position
 end
 
-function FindLocation(aiBrain, intelManager, blueprint, location, radius, massAdjacent, energyAdjacent, locationBias)
+function FindLocation(aiBrain, intelManager, blueprint, location, radius, massAdjacent, energyAdjacent, factoryAdjacent, locationBias)
     -- Fuck having this as a dependency: aiBrain:FindPlaceToBuild
     -- It is so miserably complex to call that I'm going to roll my own version right here. Fight me.
 
@@ -54,14 +54,7 @@ function FindLocation(aiBrain, intelManager, blueprint, location, radius, massAd
     while iterations < maxIterations do
         iterations = iterations + 1
         DrawCircle(targetLocation,1,'aa000000')
-        if VDist3(targetLocation,location) > radius then
-            -- pass?  We're outside of the build radius.
-            if math.min(math.abs(targetLocation[1]-location[1]),math.abs(targetLocation[3]-location[3])) > radius then
-                -- We're never getting back in range.
-                -- TODO: This doesn't handle the location bias correctly
-                return result
-            end
-        elseif aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) then
+        if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) then
             -- TODO add adjacency check support
             return targetLocation
         end
@@ -112,6 +105,8 @@ function EngineerBuildStructure(brain,engie,structure,location,radius)
         while table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
         end
+    else
+        WARN("Failed to find position to build: "..tostring(structure))
     end
 end
 
@@ -125,8 +120,20 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
         while table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
         end
+    else
+        WARN("Failed to find position for markerType: "..tostring(markerType))
     end
 end
 
 function EngineerAssist(baseController,engie,target)
+end
+
+function FactoryBuildUnit(fac,unit)
+    IssueClearCommands({fac})
+    IssueBuildFactory({fac},unit,1)
+    while not fac:IsIdleState() do
+        -- Like, I know this is hammering something but you can't afford to wait on facs.
+        -- In the future I want to queue up stuff properly, but for now just deal with it.
+        WaitTicks(1)
+    end
 end

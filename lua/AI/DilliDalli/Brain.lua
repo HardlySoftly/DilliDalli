@@ -28,18 +28,32 @@ Brain = Class({
     IsAlive = function(self)
         return self.aiBrain.Result ~= "defeat"
     end,
-    
+
     GetEngineers = function(self)
         local units = self.aiBrain:GetListOfUnits(categories.MOBILE*categories.ENGINEER,false,true)
         local n = 0
         local engies = {}
         for _, v in units do
-            if not v.CustomData or ((not v.CustomData.excludeEngie) and (not v.CustomData.engieAssigned)) then
+            if (not v.CustomData or ((not v.CustomData.excludeEngie) and (not v.CustomData.engieAssigned))) and not v:IsBeingBuilt() then
                 n = n+1
                 engies[n] = v
             end
         end
+        --LOG("Engies found: "..tostring(table.getn(engies)))
         return engies
+    end,
+
+    GetFactories = function(self)
+        local units = self.aiBrain:GetListOfUnits(categories.STRUCTURE*categories.FACTORY,false,true)
+        local n = 0
+        local facs = {}
+        for _, v in units do
+            if not v.CustomData or ((not v.CustomData.excludeFac) and (not v.CustomData.facAssigned)) then
+                n = n+1
+                facs[n] = v
+            end
+        end
+        return facs
     end,
 
     ForkThread = function(self, fn, ...)
