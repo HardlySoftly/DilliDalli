@@ -1,4 +1,4 @@
-UnitController = Class({
+ArmyMonitor = Class({
     Initialise = function(self,brain)
         self.brain = brain
     end,
@@ -14,8 +14,8 @@ UnitController = Class({
     end,
 })
 
-function CreateUnitController(brain)
-    local uc = UnitController()
-    uc:Initialise(brain)
-    return uc
+function CreateArmyMonitor(brain)
+    local am = ArmyMonitor()
+    am:Initialise(brain)
+    return am
 end

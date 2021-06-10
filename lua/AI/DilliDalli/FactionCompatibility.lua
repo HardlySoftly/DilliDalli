@@ -29,4 +29,10 @@ translate = {
         CYBRAN = "url0105",
         SERAPHIM = "xsl0105",
     },
+    DirectFireT1 = {
+        AEON = "ual0201",
+        UEF = "uel0201",
+        CYBRAN = "url0107",
+        SERAPHIM = "xsl0201",
+    },
 }

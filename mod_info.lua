@@ -1,5 +1,5 @@
 name = "AI: DilliDalli"
-uid = "28F4B5A9EDE30F06-version:0.0.2"
+uid = "28F4B5A9EDE30F06-version:0.0.3"
 version = 0
 copyright = "Softles"
 description = "There are 10 types of people in the world:  01) Those that understand binary; 02) Those that don't; 10) And those that didn't expect this joke to be in base three."

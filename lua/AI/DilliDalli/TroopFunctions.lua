@@ -9,14 +9,18 @@ function WaitingOnCommands(cmds)
     return false
 end
 
-function FindMarkerLocation(aiBrain,intelManager,blueprint,location,markerType)
+function FindMarkerLocation(aiBrain, baseManager, intelManager, blueprint, location, markerType)
     local markers = ScenarioUtils.GetMarkers()
     local best = 1000000
     local bestMarker = nil
     for _, v in markers do
         if v.type == markerType then
             local dist = VDist3(location,v.position)
-            if dist < best and aiBrain:CanBuildStructureAt(blueprint.BlueprintId,v.position) then
+            -- TODO: Check there isn't a building planned there already... somehow
+            -- TODO: Not hardcoded pathability type
+            if dist < best and aiBrain:CanBuildStructureAt(blueprint.BlueprintId,v.position)
+                           and intelManager:CanPathToSurface(location,v.position)
+                           and baseManager:LocationIsClear(v.position,blueprint) then
                 best = dist
                 bestMarker = v
             end
@@ -25,7 +29,7 @@ function FindMarkerLocation(aiBrain,intelManager,blueprint,location,markerType)
     return bestMarker.position
 end
 
-function FindLocation(aiBrain, intelManager, blueprint, location, radius, massAdjacent, energyAdjacent, factoryAdjacent, locationBias)
+function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, radius, locationBias)
     -- Fuck having this as a dependency: aiBrain:FindPlaceToBuild
     -- It is so miserably complex to call that I'm going to roll my own version right here. Fight me.
 
@@ -37,14 +41,21 @@ function FindLocation(aiBrain, intelManager, blueprint, location, radius, massAd
         -- Bias location towards nearby enemy structures
     elseif locationBias == "centre" then
         -- Bias location towards the centre of the map
+        local dx = intelManager.centre[1] - location[1]
+        local dz = intelManager.centre[3] - location[3]
+        local norm = math.sqrt(dx*dx+dz*dz)
+        local x = math.floor(location[1]+(dx*buildRadius)/(norm*2)+Random(-1,1))+0.5
+        local z = math.floor(location[3]+(dz*buildRadius)/(norm*2)+Random(-1,1))+0.5
+        targetLocation = {x,GetSurfaceHeight(x,z),z}
     elseif locationBias == "defence" then
         -- Bias location defensively, taking into account similar units
     else
-        local x = location[1]+Random(-5,5)
-        local z = location[3]+Random(-5,5)
+        local x = math.floor(location[1]+Random(-5,5))+0.5
+        local z = math.floor(location[3]+Random(-5,5))+0.5
         targetLocation = {x,GetSurfaceHeight(x,z),z}
     end
     -- Step 2: Iterate through candidate locations in order
+    local start = table.copy(targetLocation)
     local ring = 0
     local ringSize = 0
     local ringIndex = 0
@@ -53,8 +64,8 @@ function FindLocation(aiBrain, intelManager, blueprint, location, radius, massAd
     local maxIterations = 10000 -- 100x100 square
     while iterations < maxIterations do
         iterations = iterations + 1
-        DrawCircle(targetLocation,1,'aa000000')
-        if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) then
+        if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) and intelManager:CanPathToSurface(location,targetLocation)
+                                                                             and baseManager:LocationIsClear(targetLocation,blueprint) then
             -- TODO add adjacency check support
             return targetLocation
         end
@@ -63,26 +74,26 @@ function FindLocation(aiBrain, intelManager, blueprint, location, radius, massAd
             ring = ring+1
             ringIndex = 0
             ringSize = 8*ring
-            local x = targetLocation[1]+1
-            local z = targetLocation[3]+1
+            local x = start[1]+ring
+            local z = start[3]+ring
             targetLocation = {x,GetSurfaceHeight(x,z),z}
         else
             local x = targetLocation[1]
             local z = targetLocation[3]
-            ringIndex = ringIndex + 1
-            if ringIndex > 7*ring - 1 or ring <= ring-1 then
-                -- Move to the right
-                x = x+1
-            elseif ringIndex > 5*ring-1 then
+            if ringIndex < 2*ring then
                 -- Move up
-                z = z+1
-            elseif ringIndex > 3*ring-1 then
-                -- Move to the left
-                x = x-1
-            else --if ringIndex > ring-1 then
-                -- Move down
                 z = z-1
+            elseif ringIndex < ring*4 then
+                -- Move left
+                x = x-1
+            elseif ringIndex < ring*6 then
+                -- Move down
+                z = z+1
+            else
+                -- Move right
+                x = x+1
             end
+            ringIndex = ringIndex + 1
             targetLocation = {x,GetSurfaceHeight(x,z),z}
         end
     end
@@ -96,32 +107,42 @@ function EngineerBuildStructure(brain,engie,structure,location,radius)
         location = engie:GetPosition()
         radius = 40
     end
-    local pos = FindLocation(aiBrain,brain.intel,bp,location,radius)
+    local pos = FindLocation(aiBrain,brain.base,brain.intel,bp,location,radius,"centre")
     if pos then
         -- Clear any existing commands
         IssueClearCommands({engie})
         -- Now issue build command
-        local cmd = IssueBuildMobile({engie},pos,structure,{})
-        while table.getn(engie:GetCommandQueue()) > 0 do
+        -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
+        local constructionID = tostring(Random(0,1073741823))
+        brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
+        while (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
         end
+        brain.base:BaseCompleteBuildMobile(constructionID)
+        return true
     else
         WARN("Failed to find position to build: "..tostring(structure))
+        return false
     end
 end
 
 function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
     local aiBrain = engie:GetAIBrain()
     local bp = aiBrain:GetUnitBlueprint(structure)
-    local pos = FindMarkerLocation(aiBrain,brain.intel,bp,engie:GetPosition(),markerType)
+    local pos = FindMarkerLocation(aiBrain,brain.base,brain.intel,bp,engie:GetPosition(),markerType)
     if pos then
         IssueClearCommands({engie})
-        local cmd = IssueBuildMobile({engie},pos,structure,{})
-        while table.getn(engie:GetCommandQueue()) > 0 do
+        -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
+        local constructionID = tostring(Random(0,1073741823))
+        brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
+        while (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
         end
+        brain.base:BaseCompleteBuildMobile(constructionID)
+        return true
     else
         WARN("Failed to find position for markerType: "..tostring(markerType))
+        return false
     end
 end
 
