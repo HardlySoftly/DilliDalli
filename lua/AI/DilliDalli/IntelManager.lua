@@ -6,7 +6,8 @@ IntelManager = Class({
         self.brain = brain
         self.centre = {ScenarioInfo.size[1],0,ScenarioInfo.size[2]}
 
-        self:ForkThread(self.LoadMapMarkers)
+        self:LoadMapMarkers()
+        --self:GetAvailableMarkers()
     end,
 
     LoadMapMarkers = function(self)
@@ -38,10 +39,14 @@ IntelManager = Class({
         local markers = ScenarioUtils.GetMarkers()
         local best = 1000000
         local bestMarker = nil
+        local bp = self.brain.aiBrain:GetUnitBlueprint('uab1103')
+        -- TODO: Support different kinds of pathing
         for _, v in markers do
             if v.type == t then
                 local dist = VDist3(pos,v.position)
-                if dist < best and self:MarkerNotClaimed(v) then
+                if dist < best and self:CanBuildOnMarker(v.position,bp)
+                               and self:CanPathToSurface(pos,v.position)
+                               and self.brain.base:LocationIsClear(v.position,bp) then
                     best = dist
                     bestMarker = v
                 end
@@ -50,13 +55,31 @@ IntelManager = Class({
         return bestMarker
     end,
 
-    MarkerNotClaimed = function(self,marker)
-        -- TODO: make this intel compliant.
-        local units = GetUnitsInRect(marker.position[1],marker.position[3],marker.position[1],marker.position[3])
+    CanBuildOnMarker = function(self,pos)
+        local units = GetUnitsInRect(Rect(pos[1],pos[3],pos[1],pos[3]))
+        local myIndex = self.brain.aiBrain:GetArmyIndex()
         if not units then
             return true
+        end
+        for _, v in units do
+            local id = v:GetUnitId()
+            if IsAlly(myIndex,v:GetArmy()) and EntityCategoryContains(categories.MASSEXTRACTION,v) then
+                return false
+            end
+            local blip = v:GetBlip(myIndex)
+            if blip and (blip:IsOnRadar(myIndex) or blip:IsSeenEver(myIndex)) then
+                return false
+            end
+        end
+        return true
+    end,
+
+    GetEnemyStructure = function(self,pos)
+        local units = GetUnitsInRect(Rect(pos[1],pos[3],pos[1],pos[3]))
+        if not units or IsAlly(units[1]:GetArmy(),self.brain.aiBrain:GetArmyIndex()) then
+            return nil
         else
-            return table.getn(units) == 0
+            return units[1]
         end
     end,
 
@@ -64,6 +87,12 @@ IntelManager = Class({
         local indices0 = self:GetIndices(pos0[1],pos0[3])
         local indices1 = self:GetIndices(pos1[1],pos1[3])
         return self.markers[indices0[1]][indices0[2]].surf.component == self.markers[indices1[1]][indices1[2]].surf.component
+    end,
+
+    MapMonitoringThread = function(self)
+        while brain:IsAlive() do
+            WaitTicks(10)
+        end
     end,
 
     ForkThread = function(self, fn, ...)

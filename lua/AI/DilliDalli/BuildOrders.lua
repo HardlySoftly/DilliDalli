@@ -6,7 +6,7 @@ LandHydroLand = {
         { work="LandFactoryT1", priority=1, location=nil, distance=0, targetSpend=0, buildOrder=true, count=1, duplicates=1, keep=false },
     },
     factory = {
-        { work="EngineerT1", priority=1, location=nil, distance=0, targetSpend=0, buildOrder=true, count=2, duplicates=1, keep=false },
+        { work="EngineerT1", priority=1, location=nil, distance=0, targetSpend=0, buildOrder=true, count=6, duplicates=1, keep=false },
     }
 }
 
@@ -19,6 +19,6 @@ LandLand = {
         { work="LandFactoryT1", priority=1, location=nil, distance=0, targetSpend=0, buildOrder=true, count=1, duplicates=1, keep=false },
     },
     factory = {
-        { work="EngineerT1", priority=1, location=nil, distance=0, targetSpend=0, buildOrder=true, count=2, duplicates=1, keep=false },
+        { work="EngineerT1", priority=1, location=nil, distance=0, targetSpend=0, buildOrder=true, count=6, duplicates=1, keep=false },
     }
 }

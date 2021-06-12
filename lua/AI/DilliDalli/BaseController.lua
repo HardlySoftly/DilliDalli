@@ -31,6 +31,8 @@ BaseController = Class({
             duplicates = 1,
             -- Keep while count == 0?  (e.g. long standing tasks that the brain may want to update)
             keep = false,
+            -- If we have to disable this job for some reason, then let the creator know (priority will get reset in this case)
+            failed = false,
         }
     end,
 
@@ -65,7 +67,14 @@ BaseController = Class({
             table.remove(self.mobileJobs,index)
         elseif index and self.mobileJobs[index].meta.failures >= 10 then
             -- Some kind of issue with this job, so stop assigning it.
-            table.remove(self.mobileJobs,index)
+            if self.mobileJobs[index].job.keep then
+                WARN("DilliDalli: Repeated Job failure, de-prioritising: "..tostring(self.mobileJobs[index].job.work))
+                self.mobileJobs[index].job.priority = -1
+                self.mobileJobs[index].job.failed = true
+            else
+                WARN("DilliDalli: Repeated Job failure, removing: "..tostring(self.mobileJobs[index].job.work))
+                table.remove(self.mobileJobs,index)
+            end
         end
     end,
     OnCompleteFactory = function(self,jobID)
@@ -154,7 +163,16 @@ BaseController = Class({
 
     CanDoJob = function(self,unit,job)
         -- Used for both Engineers and Factories
+        -- Check if there is an available and pathable resource marker for restrictive thingies
+        if (job.job.work == "MexT1" or job.job.work == "MexT2" or job.job.work == "MexT3") then
+            if not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Mass") then
+                return false
+            end
+        elseif job.job.work == "Hydro" and not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon") then
+            return false
+        end
         -- TODO: Add spending checks in here
+        -- TODO: Add location checks in here
         return (
             job.meta.activeCount < job.job.duplicates
             and job.meta.activeCount < job.job.count
@@ -168,6 +186,7 @@ BaseController = Class({
         for i=1,table.getn(jobs) do
             local job = jobs[i]
             -- TODO: Support assitance
+            -- TODO: Select between equal priority things based on current spend levels / commitment levels (spend/duplicates)
             if self:CanDoJob(unit,job) and ((job.job.priority > bestPriority and isBOJob == job.job.buildOrder) or (not isBOJob and job.job.buildOrder)) then
                 bestPriority = job.job.priority
                 bestJob = job

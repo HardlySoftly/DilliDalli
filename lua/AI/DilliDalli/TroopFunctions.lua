@@ -9,26 +9,6 @@ function WaitingOnCommands(cmds)
     return false
 end
 
-function FindMarkerLocation(aiBrain, baseManager, intelManager, blueprint, location, markerType)
-    local markers = ScenarioUtils.GetMarkers()
-    local best = 1000000
-    local bestMarker = nil
-    for _, v in markers do
-        if v.type == markerType then
-            local dist = VDist3(location,v.position)
-            -- TODO: Check there isn't a building planned there already... somehow
-            -- TODO: Not hardcoded pathability type
-            if dist < best and aiBrain:CanBuildStructureAt(blueprint.BlueprintId,v.position)
-                           and intelManager:CanPathToSurface(location,v.position)
-                           and baseManager:LocationIsClear(v.position,blueprint) then
-                best = dist
-                bestMarker = v
-            end
-        end
-    end
-    return bestMarker.position
-end
-
 function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, radius, locationBias)
     -- Fuck having this as a dependency: aiBrain:FindPlaceToBuild
     -- It is so miserably complex to call that I'm going to roll my own version right here. Fight me.
@@ -129,7 +109,7 @@ end
 function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
     local aiBrain = engie:GetAIBrain()
     local bp = aiBrain:GetUnitBlueprint(structure)
-    local pos = FindMarkerLocation(aiBrain,brain.base,brain.intel,bp,engie:GetPosition(),markerType)
+    local pos = brain.intel:FindNearestEmptyMarker(engie:GetPosition(),markerType).position
     if pos then
         IssueClearCommands({engie})
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
@@ -139,6 +119,18 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
             WaitTicks(2)
         end
         brain.base:BaseCompleteBuildMobile(constructionID)
+        if engie.Dead then
+            return true
+        end
+        local target = brain.intel:GetEnemyStructure(pos)
+        if target then
+            IssueReclaim({engie},target)
+            brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
+            while (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
+                WaitTicks(2)
+            end
+            brain.base:BaseCompleteBuildMobile(constructionID)
+        end
         return true
     else
         WARN("Failed to find position for markerType: "..tostring(markerType))

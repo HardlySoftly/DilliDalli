@@ -26,6 +26,7 @@ function BeginSession()
 end
 
 function DilliDalliFuncCreateMapMarkers()
+    -- TODO: inspect the results of GetTerrainType for context
     ScenarioInfo.DilliDalliMap = {}
     -- Step 1: Calculate marker positions
     ScenarioInfo.DilliDalliMap.border = 5
