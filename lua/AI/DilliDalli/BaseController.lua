@@ -37,22 +37,26 @@ BaseController = Class({
     end,
 
     AddMobileJob = function(self,job)
-        local meta = { assigned = {}, assisting = {}, id=self.jobID, activeCount=0, failures = 0 }
+        local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0 }
         self.jobID = self.jobID + 1
         table.insert(self.mobileJobs, { job = job, meta=meta })
+        return meta
     end,
     AddFactoryJob = function(self,job)
-        local meta = { assigned = {}, assisting = {}, id=self.jobID, activeCount=0 , failures = 0}
+        local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0 , failures = 0}
         self.jobID = self.jobID + 1
         table.insert(self.factoryJobs, { job = job, meta=meta })
+        return meta
     end,
 
-    OnCompleteMobile = function(self,jobID,failed)
+    OnCompleteMobile = function(self,engie,jobID,failed)
         -- Delete a job
         local index
         for i, job in self.mobileJobs do
             if job.meta.id == jobID then
                 job.job.count = job.job.count - 1
+                local tBP = GetUnitBlueprintByName(Translation[job.job.work][engie.factionCategory])
+                job.meta.spend = job.meta.spend - engie:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                 job.meta.activeCount = job.meta.activeCount - 1
                 -- TODO: support assisting
                 if failed then
@@ -77,12 +81,14 @@ BaseController = Class({
             end
         end
     end,
-    OnCompleteFactory = function(self,jobID)
+    OnCompleteFactory = function(self,fac,jobID)
         -- Delete a job
         local index
         for i, job in self.factoryJobs do
             if job.meta.id == jobID then
                 job.job.count = job.job.count - 1
+                local tBP = GetUnitBlueprintByName(Translation[job.job.work][fac.factionCategory])
+                job.meta.spend = job.meta.spend - fac:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                 job.meta.activeCount = job.meta.activeCount - 1
                 index = i
             end
@@ -108,10 +114,12 @@ BaseController = Class({
                 success = TroopFunctions.EngineerBuildStructure(self.brain,engie,unitID)
             end
             -- Return engie back to the pool
-            self:OnCompleteMobile(activeJob.meta.id,not success)
+            self:OnCompleteMobile(engie,activeJob.meta.id,not success)
             if not engie.Dead then
                 activeJob = self:IdentifyJob(engie,self.mobileJobs)
                 if activeJob then
+                    local tBP = GetUnitBlueprintByName(Translation[activeJob.job.work][engie.factionCategory])
+                    activeJob.meta.spend = activeJob.meta.spend + engie:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                     activeJob.meta.activeCount = activeJob.meta.activeCount + 1
                 end
             else
@@ -129,10 +137,12 @@ BaseController = Class({
             -- Build the thing
             TroopFunctions.FactoryBuildUnit(fac,unitID)
             -- Return fac back to the pool
-            self:OnCompleteFactory(activeJob.meta.id)
+            self:OnCompleteFactory(fac,activeJob.meta.id)
             if not fac.Dead then
                 activeJob = self:IdentifyJob(fac,self.mobileJobs)
                 if activeJob then
+                    local tBP = GetUnitBlueprintByName(Translation[activeJob.job.work][fac.factionCategory])
+                    activeJob.meta.spend = activeJob.meta.spend + fac:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                     activeJob.meta.activeCount = activeJob.meta.activeCount + 1
                 end
             else
@@ -143,6 +153,9 @@ BaseController = Class({
     end,
 
     AssignJobMobile = function(self,engie,job)
+        -- Update job metadata
+        local tBP = GetUnitBlueprintByName(Translation[job.job.work][engie.factionCategory])
+        job.meta.spend = job.meta.spend + engie:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
         -- Set a flag to tell everyone this engie is busy
         if not engie.CustomData then
@@ -152,6 +165,9 @@ BaseController = Class({
         self:ForkThread(self.RunMobileJobThread,job,engie,false)
     end,
     AssignJobFactory = function(self,fac,job)
+        -- Update job metadata
+        local tBP = GetUnitBlueprintByName(Translation[job.job.work][fac.factionCategory])
+        job.meta.spend = job.meta.spend + fac:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
         -- Set a flag to tell everyone this fac is busy
         if not fac.CustomData then
@@ -171,32 +187,60 @@ BaseController = Class({
         elseif job.job.work == "Hydro" and not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon") then
             return false
         end
-        -- TODO: Add spending checks in here
+        if job.job.priority <= 0 then
+            return false
+        end
         -- TODO: Add location checks in here
         return (
-            job.meta.activeCount < job.job.duplicates
+            job.meta.spend < job.job.targetSpend
+            and job.meta.activeCount < job.job.duplicates
             and job.meta.activeCount < job.job.count
             and unit:CanBuild(Translation[job.job.work][unit.factionCategory])
         )
     end,
+    CheckPriority = function(self, currentJob, newJob)
+        -- Return true if the new job should be higher priority than the old job.
+        -- Check the old one is actually set yet
+        if not currentJob then
+            return newJob.job.priority > 0
+        end
+        -- Check if one is a build order, in which case prioritise it.
+        if currentJob.job.buildOrder and not newJob.job.buildOrder then
+            return false
+        elseif newJob.job.buildOrder and not currentJob.job.buildOrder then
+            return true
+        end
+        -- Check if one has a higher priority field
+        if currentJob.job.priority > newJob.job.priority then
+            return false
+        elseif currentJob.job.priority < newJob.job.priority then
+            return true
+        end
+        -- Get most limiting marginal utility between each of the three restrictions on jobs: duplicates vs active, count vs active, targetSpend vs spend
+        -- Division is ok because we check in CanDoJob that each denominator is strictly positive
+        local oldMarginalUtility = math.max(currentJob.meta.activeCount/currentJob.job.duplicates,
+                                            currentJob.meta.activeCount/currentJob.job.count,
+                                            currentJob.meta.spend/currentJob.job.targetSpend)
+        local newMarginalUtility = math.max(newJob.meta.activeCount/newJob.job.duplicates,
+                                            newJob.meta.activeCount/newJob.job.count,
+                                            newJob.meta.spend/newJob.job.targetSpend)
+        return oldMarginalUtility > newMarginalUtility
+    end,
     IdentifyJob = function(self,unit,jobs)
         local bestJob
-        local bestPriority = 0
-        local isBOJob = false
         for i=1,table.getn(jobs) do
             local job = jobs[i]
             -- TODO: Support assitance
-            -- TODO: Select between equal priority things based on current spend levels / commitment levels (spend/duplicates)
-            if self:CanDoJob(unit,job) and ((job.job.priority > bestPriority and isBOJob == job.job.buildOrder) or (not isBOJob and job.job.buildOrder)) then
-                bestPriority = job.job.priority
+            -- TODO: Support location constraints
+            if self:CanDoJob(unit,job) and self:CheckPriority(bestJob,job) then
                 bestJob = job
-                isBOJob = job.job.buildOrder
             end
         end
         return bestJob
     end,
 
     AssignEngineers = function(self,allEngies)
+        -- TODO: implement full stable matching algorithm
         for i=1,table.getn(allEngies) do
             local job = self:IdentifyJob(allEngies[i],self.mobileJobs)
             if job then
@@ -205,6 +249,7 @@ BaseController = Class({
         end
     end,
     AssignFactories = function(self,allFacs)
+        -- TODO: implement full stable matching algorithm
         for i=1,table.getn(allFacs) do
             local job = self:IdentifyJob(allFacs[i],self.factoryJobs)
             if job then
@@ -239,10 +284,15 @@ BaseController = Class({
     end,
 
     EngineerManagementThread = function(self)
+        local i = 0
         while self.brain:IsAlive() do
+            i = i+1
             --LOG("Assigning Engineers...")
             self:AssignEngineers(self:GetEngineers())
             --self:LogJobs()
+            if math.mod(i,10) == 5 then
+                --self:LogJobs()
+            end
             WaitSeconds(3)
         end
     end,
@@ -264,11 +314,11 @@ BaseController = Class({
         LOG("===== LOGGING BASECONTROLLER JOBS =====")
         LOG("MOBILE:")
         for k, v in self.mobileJobs do
-            LOG("\t"..tostring(k)..":\t"..tostring(v.job.work)..", "..tostring(v.job.priority)..", "..tostring(v.job.targetSpend)..", "..tostring(v.job.buildOrder)..", "..tostring(v.job.count)..", "..tostring(v.job.duplicates)..", "..tostring(v.meta.id))
+            LOG("\t"..tostring(k)..":\t"..tostring(v.job.work)..", "..tostring(v.job.priority)..", "..tostring(v.job.targetSpend)..", "..tostring(v.job.buildOrder)..", "..tostring(v.job.count)..", "..tostring(v.job.duplicates)..", "..tostring(v.meta.id)..", "..tostring(v.meta.spend))
         end
         LOG("FACTORY:")
         for k, v in self.factoryJobs do
-            LOG("\t"..tostring(k)..":\t"..tostring(v.job.work)..", "..tostring(v.job.priority)..", "..tostring(v.job.targetSpend)..", "..tostring(v.job.buildOrder)..", "..tostring(v.job.count)..", "..tostring(v.job.duplicates)..", "..tostring(v.meta.id))
+            LOG("\t"..tostring(k)..":\t"..tostring(v.job.work)..", "..tostring(v.job.priority)..", "..tostring(v.job.targetSpend)..", "..tostring(v.job.buildOrder)..", "..tostring(v.job.count)..", "..tostring(v.job.duplicates)..", "..tostring(v.meta.id)..", "..tostring(v.meta.spend))
         end
         LOG("===== END LOG =====")
     end,

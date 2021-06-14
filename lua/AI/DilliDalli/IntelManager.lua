@@ -57,15 +57,15 @@ IntelManager = Class({
 
     CanBuildOnMarker = function(self,pos)
         local units = GetUnitsInRect(Rect(pos[1],pos[3],pos[1],pos[3]))
+        local alliedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Ally')
+        local neutralUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Neutral')
         local myIndex = self.brain.aiBrain:GetArmyIndex()
-        if not units then
-            return true
+        if (alliedUnits and table.getn(alliedUnits) > 0) or (neutralUnits and table.getn(neutralUnits) > 0) then
+            return false
         end
-        for _, v in units do
+        local enemyUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Enemy')
+        for _, v in enemyUnits or {} do
             local id = v:GetUnitId()
-            if IsAlly(myIndex,v:GetArmy()) and EntityCategoryContains(categories.MASSEXTRACTION,v) then
-                return false
-            end
             local blip = v:GetBlip(myIndex)
             if blip and (blip:IsOnRadar(myIndex) or blip:IsSeenEver(myIndex)) then
                 return false
@@ -75,12 +75,26 @@ IntelManager = Class({
     end,
 
     GetEnemyStructure = function(self,pos)
-        local units = GetUnitsInRect(Rect(pos[1],pos[3],pos[1],pos[3]))
-        if not units or IsAlly(units[1]:GetArmy(),self.brain.aiBrain:GetArmyIndex()) then
-            return nil
-        else
-            return units[1]
+        local units = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Enemy')
+        local myIndex = self.brain.aiBrain:GetArmyIndex()
+        if units and table.getn(units) > 0 then
+            local blip = units[1]:GetBlip(myIndex)
+            if blip and (blip:IsOnRadar(myIndex) or blip:IsSeenEver(myIndex)) then
+                return units[1]
+            end
         end
+        return nil
+    end,
+
+    GetNumAvailableMassPoints = function(self)
+        local num = 0
+        local markers = ScenarioUtils.GetMarkers()
+        for _, v in markers do
+            if v.type == "Mass" and self:CanBuildOnMarker(v.position) then
+                num = num + 1
+            end
+        end
+        return num
     end,
 
     CanPathToSurface = function(self,pos0,pos1)

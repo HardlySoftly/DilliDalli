@@ -31,6 +31,7 @@ Brain = Class({
         end
         self.base:Run()
         self.monitor:Run()
+        WaitSeconds(2)
         self.production:Run()
     end,
 

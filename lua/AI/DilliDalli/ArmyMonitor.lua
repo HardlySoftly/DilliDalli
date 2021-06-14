@@ -1,11 +1,24 @@
 ArmyMonitor = Class({
     Initialise = function(self,brain)
         self.brain = brain
-        
-        self.mass = { income=CreateStatBuffer(10), reclaim=CreateStatBuffer(10), earn=CreateStatBuffer(10), spend=CreateStatBuffer(10), storage=0, efficiency=1.0 }
-        self.energy = { income=CreateStatBuffer(10), reclaim=CreateStatBuffer(10), earn=CreateStatBuffer(10), spend=CreateStatBuffer(10), storage=0, efficiency=1.0 }
-        self.units = {}
+
+        self.bufs = {
+            mass = { income=CreateStatBuffer(10), reclaim=CreateStatBuffer(10), earn=CreateStatBuffer(10), spend=CreateStatBuffer(10) },
+            energy = { income=CreateStatBuffer(10), reclaim=CreateStatBuffer(10), earn=CreateStatBuffer(10), spend=CreateStatBuffer(10) },
+        }
+        self.mass = { income=0, reclaim=0, earn=0, spend=0, storage=0, efficiency=1.0 }
+        self.energy = { income=0, reclaim=0, earn=0, spend=0, storage=0, efficiency=1.0 }
+        self:ResetUnitCounts()
         self.mexes = {}
+
+        self.bufs.mass.income:Init(10)
+        self.bufs.mass.reclaim:Init(10)
+        self.bufs.mass.earn:Init(10)
+        self.bufs.mass.spend:Init(10)
+        self.bufs.energy.income:Init(10)
+        self.bufs.energy.reclaim:Init(10)
+        self.bufs.energy.earn:Init(10)
+        self.bufs.energy.spend:Init(10)
     end,
 
     LogEconomy = function(self)
@@ -17,7 +30,7 @@ ArmyMonitor = Class({
     MonitoringThread = function(self)
         local i = 0
         while self.brain:IsAlive() do
-            -- This will fail after 2^53 ticks.  I find this fact to be amusing, and will not be fixing it.
+            -- This will fail after roughly 2^53 ticks.  I find this fact to be amusing, and will not be fixing it.
             i = i+1
             local units
             if math.mod(i,2) == 0 then
@@ -31,6 +44,9 @@ ArmyMonitor = Class({
                     units = self.brain.aiBrain:GetListOfUnits(categories.ALLUNITS - categories.WALL,false,true)
                 end
                 self:UnitMonitoring(units)
+            end
+            if math.mod(i,2) == 0 then
+                self:JobMonitoring(units)
             end
             if math.mod(i,10) == 0 then
                 --self:LogEconomy()
@@ -56,26 +72,46 @@ ArmyMonitor = Class({
             energySpend = energySpend + unit:GetConsumptionPerSecondEnergy()
             -- Mex income stuff
         end
-        self.mass.income:Add(massIncome)
-        self.energy.income:Add(energyIncome)
-        self.mass.spend:Add(massSpend)
-        self.energy.spend:Add(energySpend)
+        self.mass.income = self.bufs.mass.income:Add(massIncome)
+        self.energy.income = self.bufs.energy.income:Add(energyIncome)
+        self.mass.spend = self.bufs.mass.spend:Add(massSpend)
+        self.energy.spend = self.bufs.energy.spend:Add(energySpend)
         -- Update storage values
         self.mass.storage = self.brain.aiBrain:GetEconomyStored('MASS')
         self.energy.storage = self.brain.aiBrain:GetEconomyStored('ENERGY')
         -- Update efficiency values
         self.energy.efficiency = 1.0
-        if self.energy.storage < 1 and self.energy.income:Get() < self.energy.spend:Get() then
-            self.energy.efficiency = self.energy.income:Get() / math.max(self.energy.spend:Get(),1)
+        if self.energy.storage < 1 and self.energy.income < self.energy.spend then
+            self.energy.efficiency = self.energy.income / math.max(self.energy.spend,1)
         end
         self.mass.efficiency = 1.0
-        if self.mass.storage < 1 and self.mass.income:Get() < self.mass.spend:Get() then
-            self.mass.efficiency = self.mass.income:Get() / math.max(self.mass.spend:Get(),1)
+        if self.mass.storage < 1 and self.mass.income < self.mass.spend then
+            self.mass.efficiency = self.mass.income / math.max(self.mass.spend,1)
         end
         
     end,
 
+    ResetUnitCounts = function(self)
+        self.units = { engies = { t1=0, t2=0, t3=0 }}
+    end,
+
     UnitMonitoring = function(self,units)
+        self:ResetUnitCounts()
+        for _, unit in units do
+            local isEngie = EntityCategoryContains(categories.ENGINEER,unit)
+            if isEngie then
+                if EntityCategoryContains(categories.TECH1,unit) then
+                    self.units.engies.t1 = self.units.engies.t1 + 1
+                elseif EntityCategoryContains(categories.TECH2,unit) then
+                    self.units.engies.t2 = self.units.engies.t2 + 1
+                elseif EntityCategoryContains(categories.TECH3,unit) then
+                    self.units.engies.t3 = self.units.engies.t3 + 1
+                end
+            end
+        end
+    end,
+
+    JobMonitoring = function(self)
     end,
 
     Run = function(self)
@@ -103,7 +139,7 @@ StatBuffer = Class({
     Init = function(self,size)
         self.size = size
         self.items = {}
-        for i=1,size do
+        for i=1,self.size do
             table.insert(self.items,0)
         end
         self.avg = 0
@@ -118,6 +154,7 @@ StatBuffer = Class({
         if self.index > self.size then
             self.index = 1
         end
+        return self.avg
     end,
 
     Get = function(self)

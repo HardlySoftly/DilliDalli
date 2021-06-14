@@ -1,3 +1,10 @@
+LOW = 100
+NORMAL = 200
+HIGH = 300
+CRITICAL = 400
+
+JOB_INF = 1000000000
+
 ProductionManager = Class({
     --[[
         Responsible for:
@@ -29,7 +36,7 @@ ProductionManager = Class({
 
     ManageProductionThread = function(self)
         while self.brain:IsAlive() do
-            LOG("Production Management Thread")
+            --LOG("Production Management Thread")
             self:AllocateResources()
             for _, v in self.allocations do
                 v.manager:ManageJobs(v.mass)
@@ -40,6 +47,11 @@ ProductionManager = Class({
 
     AllocateResources = function(self)
         -- TODO
+        -- TODO: tune up allocations based on mass storage
+        -- Base allocation
+        self.allocations[1].mass = self.brain.monitor.mass.income*0.3
+        -- Land allocation
+        self.allocations[2].mass = self.brain.monitor.mass.income*0.7
     end,
 
     ForkThread = function(self, fn, ...)
@@ -76,10 +88,50 @@ BaseProduction = Class({
     Initialise = function(self,brain,coord)
         self.brain = brain
         self.coord = coord
+        -- Mex expansion, controlled via duplicates (considered to cost nothing mass wise)
+        self.mexJob = self.brain.base:CreateGenericJob()
+        self.mexJob.duplicates = 2
+        self.mexJob.count = JOB_INF
+        self.mexJob.targetSpend = JOB_INF
+        self.mexJob.work = "MexT1"
+        self.mexJob.keep = true
+        self.mexJob.priority = NORMAL
+        self.brain.base:AddMobileJob(self.mexJob)
+        -- Pgens - controlled via target spend
+        self.pgenJob = self.brain.base:CreateGenericJob()
+        self.pgenJob.duplicates = 3
+        self.pgenJob.count = JOB_INF
+        self.pgenJob.targetSpend = 0
+        self.pgenJob.work = "PgenT1"
+        self.pgenJob.keep = true
+        self.pgenJob.priority = NORMAL
+        self.brain.base:AddMobileJob(self.pgenJob)
+        -- Engies - controlled via job count (considered to cost nothing mass wise)
+        self.engieJob = self.brain.base:CreateGenericJob()
+        self.engieJob.duplicates = 2
+        self.engieJob.count = 0
+        self.engieJob.targetSpend = JOB_INF
+        self.engieJob.work = "EngineerT1"
+        self.engieJob.keep = true
+        self.engieJob.priority = NORMAL
+        self.brain.base:AddFactoryJob(self.engieJob)
     end,
 
     -- Called every X ticks, does the job management.  Passed the mass assigned this funding round.
     ManageJobs = function(self,mass)
+        local massRemaining = mass
+        local availableMex = self.brain.intel:GetNumAvailableMassPoints()
+        self.mexJob.duplicates = availableMex/2
+        local engiesRequired = math.min(10,availableMex/2)-self.brain.monitor.units.engies.t1
+        -- Do I need more pgens?
+        local pgenSpend = math.min(massRemaining,(self.brain.monitor.energy.spend*1.2 - self.brain.monitor.energy.income)/8)
+        self.pgenJob.targetSpend = pgenSpend
+        massRemaining = massRemaining - pgenSpend
+        engiesRequired = engiesRequired + math.max(0,pgenSpend/4)
+        -- Do I need some mex upgrades?
+        -- TODO: this.
+        -- How many engies do I need?
+        self.engieJob.count = engiesRequired
     end,
 })
 
@@ -101,6 +153,7 @@ LandProduction = Class({
 
     -- Called every X ticks, does the job management.  Passed the mass assigned this funding round.
     ManageJobs = function(self,mass)
+        
     end,
 })
 
