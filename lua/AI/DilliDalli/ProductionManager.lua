@@ -149,11 +149,29 @@ LandProduction = Class({
     Initialise = function(self,brain,coord)
         self.brain = brain
         self.coord = coord
+        self.tankJob = self.brain.base:CreateGenericJob()
+        self.tankJob.duplicates = JOB_INF
+        self.tankJob.count = JOB_INF
+        self.tankJob.targetSpend = 0
+        self.tankJob.work = "DirectFireT1"
+        self.tankJob.keep = true
+        self.tankJob.priority = NORMAL
+        self.brain.base:AddFactoryJob(self.tankJob)
+        self.facJob = self.brain.base:CreateGenericJob()
+        self.facJob.duplicates = JOB_INF
+        self.facJob.count = JOB_INF
+        self.facJob.targetSpend = 0
+        self.facJob.work = "LandFactoryT1"
+        self.facJob.keep = true
+        self.facJob.priority = NORMAL
+        self.brain.base:AddMobileJob(self.facJob)
     end,
 
     -- Called every X ticks, does the job management.  Passed the mass assigned this funding round.
     ManageJobs = function(self,mass)
-        
+        self.tankJob.targetSpend = mass*1.2
+        self.facJob.targetSpend = mass - self.tankJob.actualSpend*1.2
+        --LOG("Mass: "..tostring(mass)..", tanks: "..tostring(mass*1.2)..", fac build: "..tostring(self.facJob.targetSpend))
     end,
 })
 

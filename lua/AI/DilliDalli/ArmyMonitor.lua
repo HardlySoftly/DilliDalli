@@ -112,6 +112,20 @@ ArmyMonitor = Class({
     end,
 
     JobMonitoring = function(self)
+        for _, job in self.brain.base.mobileJobs do
+            if not job.meta.spendBuf then
+                -- Average over 5 seconds
+                job.meta.spendBuf = CreateStatBuffer(25)
+            end
+            job.job.actualSpend = job.meta.spendBuf:Add(job.meta.spend)
+        end
+        for _, job in self.brain.base.factoryJobs do
+            if not job.meta.spendBuf then
+                -- Average over 5 seconds
+                job.meta.spendBuf = CreateStatBuffer(25)
+            end
+            job.job.actualSpend = job.meta.spendBuf:Add(job.meta.spend)
+        end
     end,
 
     Run = function(self)

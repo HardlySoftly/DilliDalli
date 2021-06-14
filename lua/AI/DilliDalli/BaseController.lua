@@ -33,6 +33,8 @@ BaseController = Class({
             keep = false,
             -- If we have to disable this job for some reason, then let the creator know (priority will get reset in this case)
             failed = false,
+            -- Feedback to the job creator on how much is being spent on this job.
+            actualSpend = 0,
         }
     end,
 
@@ -49,14 +51,14 @@ BaseController = Class({
         return meta
     end,
 
-    OnCompleteMobile = function(self,engie,jobID,failed)
+    OnCompleteMobile = function(self,engie,jobID,failed,buildRate)
         -- Delete a job
         local index
         for i, job in self.mobileJobs do
             if job.meta.id == jobID then
                 job.job.count = job.job.count - 1
                 local tBP = GetUnitBlueprintByName(Translation[job.job.work][engie.factionCategory])
-                job.meta.spend = job.meta.spend - engie:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
+                job.meta.spend = job.meta.spend - buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                 job.meta.activeCount = job.meta.activeCount - 1
                 -- TODO: support assisting
                 if failed then
@@ -81,14 +83,14 @@ BaseController = Class({
             end
         end
     end,
-    OnCompleteFactory = function(self,fac,jobID)
+    OnCompleteFactory = function(self,fac,jobID,buildRate)
         -- Delete a job
         local index
         for i, job in self.factoryJobs do
             if job.meta.id == jobID then
                 job.job.count = job.job.count - 1
                 local tBP = GetUnitBlueprintByName(Translation[job.job.work][fac.factionCategory])
-                job.meta.spend = job.meta.spend - fac:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
+                job.meta.spend = job.meta.spend - buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                 job.meta.activeCount = job.meta.activeCount - 1
                 index = i
             end
@@ -98,7 +100,7 @@ BaseController = Class({
         end
     end,
 
-    RunMobileJobThread = function(self,job,engie,assist)
+    RunMobileJobThread = function(self,job,engie,assist,buildRate)
         -- TODO: Support assistance
         local activeJob = job
         while activeJob do
@@ -114,12 +116,12 @@ BaseController = Class({
                 success = TroopFunctions.EngineerBuildStructure(self.brain,engie,unitID)
             end
             -- Return engie back to the pool
-            self:OnCompleteMobile(engie,activeJob.meta.id,not success)
+            self:OnCompleteMobile(engie,activeJob.meta.id,not success,buildRate)
             if not engie.Dead then
                 activeJob = self:IdentifyJob(engie,self.mobileJobs)
                 if activeJob then
                     local tBP = GetUnitBlueprintByName(Translation[activeJob.job.work][engie.factionCategory])
-                    activeJob.meta.spend = activeJob.meta.spend + engie:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
+                    activeJob.meta.spend = activeJob.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                     activeJob.meta.activeCount = activeJob.meta.activeCount + 1
                 end
             else
@@ -128,7 +130,7 @@ BaseController = Class({
         end
         engie.CustomData.engieAssigned = false
     end,
-    RunFactoryJobThread = function(self,job,fac)
+    RunFactoryJobThread = function(self,job,fac,buildRate)
         -- TODO: Support assistance
         local activeJob = job
         while activeJob do
@@ -137,12 +139,12 @@ BaseController = Class({
             -- Build the thing
             TroopFunctions.FactoryBuildUnit(fac,unitID)
             -- Return fac back to the pool
-            self:OnCompleteFactory(fac,activeJob.meta.id)
+            self:OnCompleteFactory(fac,activeJob.meta.id,buildRate)
             if not fac.Dead then
                 activeJob = self:IdentifyJob(fac,self.mobileJobs)
                 if activeJob then
                     local tBP = GetUnitBlueprintByName(Translation[activeJob.job.work][fac.factionCategory])
-                    activeJob.meta.spend = activeJob.meta.spend + fac:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
+                    activeJob.meta.spend = activeJob.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                     activeJob.meta.activeCount = activeJob.meta.activeCount + 1
                 end
             else
@@ -155,26 +157,28 @@ BaseController = Class({
     AssignJobMobile = function(self,engie,job)
         -- Update job metadata
         local tBP = GetUnitBlueprintByName(Translation[job.job.work][engie.factionCategory])
-        job.meta.spend = job.meta.spend + engie:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
+        local buildRate = engie:GetBuildRate()
+        job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
         -- Set a flag to tell everyone this engie is busy
         if not engie.CustomData then
             engie.CustomData = {}
         end
         engie.CustomData.engieAssigned = true
-        self:ForkThread(self.RunMobileJobThread,job,engie,false)
+        self:ForkThread(self.RunMobileJobThread,job,engie,false,buildRate)
     end,
     AssignJobFactory = function(self,fac,job)
         -- Update job metadata
         local tBP = GetUnitBlueprintByName(Translation[job.job.work][fac.factionCategory])
-        job.meta.spend = job.meta.spend + fac:GetBuildRate()*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
+        local buildRate = fac:GetBuildRate()
+        job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
         -- Set a flag to tell everyone this fac is busy
         if not fac.CustomData then
             fac.CustomData = {}
         end
         fac.CustomData.facAssigned = true
-        self:ForkThread(self.RunFactoryJobThread,job,fac,false)
+        self:ForkThread(self.RunFactoryJobThread,job,fac,buildRate)
     end,
 
     CanDoJob = function(self,unit,job)
@@ -287,13 +291,11 @@ BaseController = Class({
         local i = 0
         while self.brain:IsAlive() do
             i = i+1
-            --LOG("Assigning Engineers...")
             self:AssignEngineers(self:GetEngineers())
-            --self:LogJobs()
             if math.mod(i,10) == 5 then
                 --self:LogJobs()
             end
-            WaitSeconds(3)
+            WaitSeconds(1)
         end
     end,
     FactoryManagementThread = function(self)
@@ -301,7 +303,7 @@ BaseController = Class({
             --LOG("Assigning Engineers...")
             self:AssignFactories(self:GetFactories())
             --self:LogJobs()
-            WaitSeconds(3)
+            WaitSeconds(1)
         end
     end,
 
