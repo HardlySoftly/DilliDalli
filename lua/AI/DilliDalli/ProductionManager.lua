@@ -46,7 +46,7 @@ ProductionManager = Class({
     end,
 
     AllocateResources = function(self)
-        -- TODO
+        -- TODO: subsidiary production and proper management
         -- TODO: tune up allocations based on mass storage
         -- Base allocation
         self.allocations[1].mass = self.brain.monitor.mass.income*0.3
@@ -96,10 +96,11 @@ BaseProduction = Class({
         self.mexJob.work = "MexT1"
         self.mexJob.keep = true
         self.mexJob.priority = NORMAL
+        self.mexJob.assist = false
         self.brain.base:AddMobileJob(self.mexJob)
         -- Pgens - controlled via target spend
         self.pgenJob = self.brain.base:CreateGenericJob()
-        self.pgenJob.duplicates = 3
+        self.pgenJob.duplicates = 10
         self.pgenJob.count = JOB_INF
         self.pgenJob.targetSpend = 0
         self.pgenJob.work = "PgenT1"
@@ -122,7 +123,12 @@ BaseProduction = Class({
         local massRemaining = mass
         local availableMex = self.brain.intel:GetNumAvailableMassPoints()
         self.mexJob.duplicates = availableMex/2
-        local engiesRequired = math.min(10,availableMex/2)-self.brain.monitor.units.engies.t1
+        local engiesRequired = 4+math.min(10,availableMex/2)-self.brain.monitor.units.engies.t1
+        -- Drop out early if we're still doing our build order
+        if not self.brain.base.isBOComplete then
+            self.engieJob.count = engiesRequired
+            return nil
+        end
         -- Do I need more pgens?
         local pgenSpend = math.min(massRemaining,(self.brain.monitor.energy.spend*1.2 - self.brain.monitor.energy.income)/8)
         self.pgenJob.targetSpend = pgenSpend
@@ -170,8 +176,10 @@ LandProduction = Class({
     -- Called every X ticks, does the job management.  Passed the mass assigned this funding round.
     ManageJobs = function(self,mass)
         self.tankJob.targetSpend = mass*1.2
-        self.facJob.targetSpend = mass - self.tankJob.actualSpend*1.2
-        --LOG("Mass: "..tostring(mass)..", tanks: "..tostring(mass*1.2)..", fac build: "..tostring(self.facJob.targetSpend))
+        self.facJob.targetSpend = 0
+        if self.brain.monitor.units.facs.land.idle.t1 == 0 and self.brain.base.isBOComplete then
+            self.facJob.targetSpend = mass - self.tankJob.actualSpend
+        end
     end,
 })
 

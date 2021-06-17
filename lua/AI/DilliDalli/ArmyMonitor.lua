@@ -92,7 +92,13 @@ ArmyMonitor = Class({
     end,
 
     ResetUnitCounts = function(self)
-        self.units = { engies = { t1=0, t2=0, t3=0 }}
+        self.units = {
+            engies = { t1=0, t2=0, t3=0 },
+            facs = {
+                land = { total = { t1=0, t2=0, t3=0 }, idle = { t1=0, t2=0, t3=0 }},
+                air = { total = { t1=0, t2=0, t3=0 }, idle = { t1=0, t2=0, t3=0 }},
+            },
+        }
     end,
 
     UnitMonitoring = function(self,units)
@@ -106,6 +112,27 @@ ArmyMonitor = Class({
                     self.units.engies.t2 = self.units.engies.t2 + 1
                 elseif EntityCategoryContains(categories.TECH3,unit) then
                     self.units.engies.t3 = self.units.engies.t3 + 1
+                end
+            end
+            
+            local isLandFac = EntityCategoryContains(categories.FACTORY*categories.LAND,unit)
+            if isLandFac then
+                local isIdle = unit:IsIdleState()
+                if EntityCategoryContains(categories.TECH1,unit) then
+                    self.units.facs.land.total.t1 = self.units.facs.land.total.t1 + 1
+                    if isIdle then
+                        self.units.facs.land.idle.t1 = self.units.facs.land.idle.t1 + 1
+                    end
+                elseif EntityCategoryContains(categories.TECH2,unit) then
+                    self.units.facs.land.total.t2 = self.units.facs.land.total.t2 + 1
+                    if isIdle then
+                        self.units.facs.land.idle.t2 = self.units.facs.land.idle.t2 + 1
+                    end
+                elseif EntityCategoryContains(categories.TECH3,unit) then
+                    self.units.facs.land.total.t3 = self.units.facs.land.total.t3 + 1
+                    if isIdle then
+                        self.units.facs.land.idle.t3 = self.units.facs.land.idle.t3 + 1
+                    end
                 end
             end
         end

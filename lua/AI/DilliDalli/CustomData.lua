@@ -7,6 +7,9 @@
     CustomData.engieAssigned
         True while this engineer is assigned to a job
         
+    CustomData.assistComplete
+        False or nil when this engie isn't assisting, used as a flag to tell the assisting troop function to exit.
+        
     CustomData.excludeFac
         If true, exclude this factory from being assigned to make things
     

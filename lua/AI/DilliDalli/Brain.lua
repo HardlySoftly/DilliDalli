@@ -30,6 +30,7 @@ Brain = Class({
             self.base:AddFactoryJob(table.copy(v))
         end
         self.base:Run()
+        self.intel:Run()
         self.monitor:Run()
         WaitSeconds(2)
         self.production:Run()

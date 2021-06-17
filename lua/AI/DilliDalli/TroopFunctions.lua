@@ -95,7 +95,7 @@ function EngineerBuildStructure(brain,engie,structure,location,radius)
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
         local constructionID = tostring(Random(0,1073741823))
         brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
-        while (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
+        while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
         end
         brain.base:BaseCompleteBuildMobile(constructionID)
@@ -115,18 +115,18 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
         local constructionID = tostring(Random(0,1073741823))
         brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
-        while (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
+        while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
         end
         brain.base:BaseCompleteBuildMobile(constructionID)
-        if engie.Dead then
+        if (not engie) or engie.Dead then
             return true
         end
         local target = brain.intel:GetEnemyStructure(pos)
         if target then
             IssueReclaim({engie},target)
             brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
-            while (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
+            while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
                 WaitTicks(2)
             end
             brain.base:BaseCompleteBuildMobile(constructionID)
@@ -138,7 +138,17 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
     end
 end
 
-function EngineerAssist(baseController,engie,target)
+function EngineerAssist(engie,target)
+    IssueClearCommands({engie})
+    IssueGuard({engie},target)
+    while target and (not target.Dead) and engie and (not engie.Dead) and (not engie.CustomData.assistComplete) do
+        WaitTicks(2)
+    end
+    if engie and (not engie.Dead) then
+        -- Reset this engie
+        IssueClearCommands({engie})
+        engie.CustomData.assistComplete = nil
+    end
 end
 
 function FactoryBuildUnit(fac,unit)
