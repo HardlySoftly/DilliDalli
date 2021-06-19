@@ -41,7 +41,7 @@ function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, r
     local ringIndex = 0
     local iterations = 0
     local result
-    local maxIterations = 10000 -- 100x100 square
+    local maxIterations = 1000000 -- 1000x1000 square
     while iterations < maxIterations do
         iterations = iterations + 1
         if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) and intelManager:CanPathToSurface(location,targetLocation)
@@ -93,7 +93,7 @@ function EngineerBuildStructure(brain,engie,structure,location,radius)
         IssueClearCommands({engie})
         -- Now issue build command
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
-        local constructionID = tostring(Random(0,1073741823))
+        local constructionID = Random(0,1073741823)
         brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
         while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
@@ -113,7 +113,7 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
     if pos then
         IssueClearCommands({engie})
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
-        local constructionID = tostring(Random(0,1073741823))
+        local constructionID = Random(0,1073741823)
         brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
         while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
@@ -154,7 +154,7 @@ end
 function FactoryBuildUnit(fac,unit)
     IssueClearCommands({fac})
     IssueBuildFactory({fac},unit,1)
-    while not fac:IsIdleState() do
+    while fac and not fac.Dead and not fac:IsIdleState() do
         -- Like, I know this is hammering something but you can't afford to wait on facs.
         -- In the future I want to queue up stuff properly, but for now just deal with it.
         WaitTicks(1)

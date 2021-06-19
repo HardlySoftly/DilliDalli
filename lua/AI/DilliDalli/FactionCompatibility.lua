@@ -11,6 +11,12 @@ translate = {
         CYBRAN = "urb0101",
         SERAPHIM = "xsb0101",
     },
+    AirFactoryT1 = {
+        AEON = "uab0102",
+        UEF = "ueb0102",
+        CYBRAN = "urb0102",
+        SERAPHIM = "xsb0102",
+    },
     Hydro = {
         AEON = "uab1102",
         UEF = "ueb1102",
@@ -34,5 +40,11 @@ translate = {
         UEF = "uel0201",
         CYBRAN = "url0107",
         SERAPHIM = "xsl0201",
+    },
+    IntieT1 = {
+        AEON = "uaa0102",
+        UEF = "uea0102",
+        CYBRAN = "ura0102",
+        SERAPHIM = "xsa0102",
     },
 }

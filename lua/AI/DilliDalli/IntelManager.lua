@@ -8,9 +8,13 @@ IntelManager = Class({
         self.brain = brain
         self.centre = {ScenarioInfo.size[1],0,ScenarioInfo.size[2]}
         self.zoneRadius = 30
+        self.edgeMult = 1.1
+        self.threatTable = { land = {}, air = {} }
 
         self:LoadMapMarkers()
+        self:FindSpawns()
         self:GenerateMapZones()
+        self:GenerateMapEdges()
     end,
 
     LoadMapMarkers = function(self)
@@ -21,6 +25,28 @@ IntelManager = Class({
         self.zNum = ScenarioInfo.DilliDalliMap.zNum
         -- Get our own copy of this since we migth want to edit fields in here
         self.markers = table.deepcopy(ScenarioInfo.DilliDalliMap.markers)
+    end,
+
+    FindSpawns = function(self)
+        local myIndex = self.brain.aiBrain:GetArmyIndex()
+        self.allies = {}
+        self.enemies = {}
+        -- TODO: Respect spawn intel levels (e.g. random spawns wouldn't have this info)
+        for k, v in ScenarioInfo.ArmySetup do
+            local army = v
+            local pos = ScenarioUtils.GetMarker(k).position
+            if not pos then
+                continue
+            end
+            if myIndex == army.ArmyIndex then
+                self.spawn = table.copy(pos)
+                table.insert(self.allies,table.copy(pos))
+            elseif IsAlly(army.ArmyIndex,myIndex) then
+                table.insert(self.allies,table.copy(pos))
+            elseif IsEnemy(army.ArmyIndex,myIndex) then
+                table.insert(self.enemies,table.copy(pos))
+            end
+        end
     end,
 
     GetIndices = function(self,x,z)
@@ -104,7 +130,7 @@ IntelManager = Class({
     end,
 
     CreateZone = function(self,pos,weight)
-        return { pos = table.copy(pos), weight = weight, control = 0 }
+        return { pos = table.copy(pos), weight = weight, control = { land = { ally = 0, enemy = 0 }, air = { ally = 0, enemy = 0 } }, edges = {} }
     end,
 
     GenerateMapZones = function(self)
@@ -158,20 +184,80 @@ IntelManager = Class({
         end
     end,
 
+    GenerateMapEdges = function(self)
+        for k0, zone in self.zones do
+            for k1, v1 in self.zones do
+                if k1 == k0 or not self:CanPathToSurface(zone.pos,v1.pos) then
+                    continue
+                end
+                local amClosest = true
+                -- TODO: Replace VDist3 with actual distance calculations
+                -- TODO: Pathability checks
+                local vz1 = VDist3(v1.pos,zone.pos)/self.edgeMult - 10
+                for k2, v2 in self.zones do
+                    if k2 == k1 or k2 == k0  or not self:CanPathToSurface(zone.pos,v2.pos) then
+                        continue
+                    end
+                    if VDist3(v2.pos,zone.pos) < vz1 and VDist3(v1.pos,v2.pos) < vz1 then
+                        amClosest = false
+                    end
+                end
+                if amClosest then
+                    table.insert(zone.edges,v1)
+                end
+            end
+        end
+    end,
+
+    GetEnemyLandThreatInRadius = function(self, pos, radius)
+        local units = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,pos,radius,'Enemy')
+        return self:GetLandThreat(units)
+    end,
+
+    GetLandThreat = function(self,units)
+        local totalThreat = 0
+        for _, unit in units do
+            totalThreat = totalThreat + self:GetUnitLandThreat(unit)
+        end
+        return totalThreat
+    end,
+
+    GetUnitLandThreat = function(self,unit)
+        if self.threatTable.land[unit.UnitId] then
+            return self.threatTable.land[unit.UnitId]
+        end
+        local threat = 0
+        if EntityCategoryContains(categories.COMMAND,unit) then
+            threat = 20
+        elseif EntityCategoryContains(categories.STRUCTURE,unit) then
+            threat = 0.1
+            if EntityCategoryContains(categories.DIRECTFIRE,unit) then
+                threat = 5
+            end
+        elseif EntityCategoryContains(categories.ENGINEER,unit) then
+            threat = 0.1
+        elseif EntityCategoryContains(categories.LAND*categories.MOBILE,unit) then
+            if EntityCategoryContains(categories.SCOUT,unit) then
+                threat = 0.1
+            elseif EntityCategoryContains(categories.TECH1,unit) then
+                threat = 1
+            elseif EntityCategoryContains(categories.TECH2,unit) then
+                threat = 3
+            elseif EntityCategoryContains(categories.TECH3,unit) then
+                threat = 6
+            end
+        end
+        self.threatTable.land[unit.UnitId] = threat
+        return threat
+    end,
+
     MonitorMapZones = function(self)
         local myIndex = self.brain.aiBrain:GetArmyIndex()
         for _, v in self.zones do
-            local enemies = table.getn(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,v.pos,self.zoneRadius,'Enemy')) > 0
-            local allies = table.getn(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,v.pos,self.zoneRadius,'Ally')) > 0
-            if enemies and allies then
-                v.control = 3
-            elseif enemies then
-                v.control = 2
-            elseif allies then
-                v.control = 1
-            else
-                v.control = 0
-            end
+            local enemies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,v.pos,self.zoneRadius,'Enemy')
+            local allies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,v.pos,self.zoneRadius,'Ally')
+            v.control.land.enemy = self:GetLandThreat(enemies)
+            v.control.land.ally = self:GetLandThreat(allies)
         end
     end,
 
@@ -185,14 +271,11 @@ IntelManager = Class({
     MapDrawingThread = function(self)
         while self.brain:IsAlive() do
             for _, v in self.zones do
-                if v.control == 3 then
-                    DrawCircle(v.pos,5*v.weight,'aa000000')
-                elseif v.control == 2 then
-                    DrawCircle(v.pos,5*v.weight,'aaff2222')
-                elseif v.control == 1 then
-                    DrawCircle(v.pos,5*v.weight,'aa22ff22')
-                else
-                    DrawCircle(v.pos,5*v.weight,'aaffffff')
+                DrawCircle(v.pos,5*v.weight,'aaffffff')
+                DrawCircle(v.pos,v.control.land.enemy+1,'aaff2222')
+                DrawCircle(v.pos,v.control.land.ally+1,'aa22ff22')
+                for _, v2 in v.edges do
+                    DrawLine(v.pos,v2.pos,'aa000000')
                 end
             end
             WaitTicks(2)
@@ -201,7 +284,7 @@ IntelManager = Class({
 
     Run = function(self)
         self:ForkThread(self.MapMonitoringThread)
-        --self:ForkThread(self.MapDrawingThread)
+        self:ForkThread(self.MapDrawingThread)
     end,
 
     GetNeighbours = function(self,i,j)

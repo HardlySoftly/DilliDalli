@@ -34,6 +34,7 @@ Brain = Class({
         self.monitor:Run()
         WaitSeconds(2)
         self.production:Run()
+        self.army:Run()
     end,
 
     IsAlive = function(self)

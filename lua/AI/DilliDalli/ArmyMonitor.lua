@@ -135,6 +135,26 @@ ArmyMonitor = Class({
                     end
                 end
             end
+            local isAirFac = EntityCategoryContains(categories.FACTORY*categories.AIR,unit)
+            if isAirFac then
+                local isIdle = unit:IsIdleState()
+                if EntityCategoryContains(categories.TECH1,unit) then
+                    self.units.facs.air.total.t1 = self.units.facs.air.total.t1 + 1
+                    if isIdle then
+                        self.units.facs.air.idle.t1 = self.units.facs.air.idle.t1 + 1
+                    end
+                elseif EntityCategoryContains(categories.TECH2,unit) then
+                    self.units.facs.air.total.t2 = self.units.facs.air.total.t2 + 1
+                    if isIdle then
+                        self.units.facs.air.idle.t2 = self.units.facs.air.idle.t2 + 1
+                    end
+                elseif EntityCategoryContains(categories.TECH3,unit) then
+                    self.units.facs.air.total.t3 = self.units.facs.air.total.t3 + 1
+                    if isIdle then
+                        self.units.facs.air.idle.t3 = self.units.facs.air.idle.t3 + 1
+                    end
+                end
+            end
         end
     end,
 
@@ -144,14 +164,26 @@ ArmyMonitor = Class({
                 -- Average over 5 seconds
                 job.meta.spendBuf = CreateStatBuffer(25)
             end
-            job.job.actualSpend = job.meta.spendBuf:Add(job.meta.spend)
+            local actualSpend = 0
+            for _, v in job.meta.assigned do
+                if v.unit and not v.unit.Dead then
+                    actualSpend = actualSpend + v.unit:GetConsumptionPerSecondMass()
+                end
+            end
+            job.job.actualSpend = job.meta.spendBuf:Add(actualSpend)
         end
         for _, job in self.brain.base.factoryJobs do
             if not job.meta.spendBuf then
                 -- Average over 5 seconds
                 job.meta.spendBuf = CreateStatBuffer(25)
             end
-            job.job.actualSpend = job.meta.spendBuf:Add(job.meta.spend)
+            local actualSpend = 0
+            for _, v in job.meta.assigned do
+                if v.unit and not v.unit.Dead then
+                    actualSpend = actualSpend + v.unit:GetConsumptionPerSecondMass()
+                end
+            end
+            job.job.actualSpend = job.meta.spendBuf:Add(actualSpend)
         end
     end,
 

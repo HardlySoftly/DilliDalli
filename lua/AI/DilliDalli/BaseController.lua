@@ -49,20 +49,38 @@ BaseController = Class({
     end,
 
     AddMobileJob = function(self,job)
-        local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0 }
+        local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="mobile" }
         self.jobID = self.jobID + 1
         table.insert(self.mobileJobs, { job = job, meta=meta })
         return meta
     end,
     AddFactoryJob = function(self,job)
-        local meta = { spend = 0, id = self.jobID, activeCount = 0 , failures = 0}
+        local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="factory" }
         self.jobID = self.jobID + 1
         table.insert(self.factoryJobs, { job = job, meta=meta })
         return meta
     end,
 
-    OnCompleteMobileAssist = function(self,jobID,buildRate,thread)
+    OnCompleteAssist = function(self,jobID,buildRate,thread)
         for _, job in self.mobileJobs do
+            if job.meta.id == jobID then
+                local index = 0
+                for k, v in job.meta.assisting do
+                    if v.myThread == thread then
+                        job.meta.spend = job.meta.spend - buildRate*v.bp.Economy.BuildCostMass/v.bp.Economy.BuildTime
+                        index = k
+                    end
+                end
+                if not (index == 0) then
+                    table.remove(job.meta.assisting,index)
+                else
+                    WARN("BaseController: Unable to complete assist! (mobile) "..tostring(thread)..", "..tostring(jobID))
+                    self:LogJobs()
+                end
+                return nil
+            end
+        end
+        for _, job in self.factoryJobs do
             if job.meta.id == jobID then
                 local index
                 for k, v in job.meta.assisting do
@@ -74,7 +92,8 @@ BaseController = Class({
                 if index then
                     table.remove(job.meta.assisting,index)
                 else
-                    WARN("BaseController: Unable to complete assist!")
+                    WARN("BaseController: Unable to complete assist! (factory) "..tostring(thread)..", "..tostring(jobID))
+                    self:LogJobs()
                 end
                 return nil
             end
@@ -82,11 +101,11 @@ BaseController = Class({
         -- Arriving here may be fine, the job could already have been deleted (in which case maintaining state isn't necessary)
         return nil
     end,
-    OnCompleteMobile = function(self,engie,jobID,failed,buildRate,threadID)
+    OnCompleteJob = function(self,unit,jobID,failed,buildRate,threadID,jobs)
         -- Delete a job
-        -- TODO: end reliance on engie pointer for faction category (may be nil?)
+        -- TODO: end reliance on unit pointer for faction category (may be nil?)
         local index = 0
-        for i, job in self.mobileJobs do
+        for i, job in jobs do
             if job.meta.id == jobID then
                 -- Keep this index
                 index = i
@@ -98,7 +117,7 @@ BaseController = Class({
                 end
                 -- Tidy up state
                 job.job.count = job.job.count - 1
-                local tBP = GetUnitBlueprintByName(Translation[job.job.work][engie.factionCategory])
+                local tBP = GetUnitBlueprintByName(Translation[job.job.work][unit.factionCategory])
                 job.meta.spend = job.meta.spend - buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                 job.meta.activeCount = job.meta.activeCount - 1
                 -- Remove from assigned workers
@@ -109,58 +128,34 @@ BaseController = Class({
                     end
                 end
                 if assignedIndex == 0 then
-                    WARN("Unable to unassign job! "..tostring(engie.Dead)..", "..tostring(jobID)..", "..tostring(threadID))
-                    for k, v in job.meta.assigned do
-                        --LOG("\t"..tostring(k)..":\t"..tostring(v.thread))
-                    end
+                    WARN("Unable to unassign job! "..tostring(jobID)..", "..tostring(threadID))
                 else
-                    --LOG("Removing: "..tostring(engie.Dead)..", "..tostring(jobID)..", "..tostring(threadID))
                     table.remove(job.meta.assigned,assignedIndex)
                 end
                 -- Complete assisting engies
-                local assistIndex = 1
-                while assistIndex <= table.getn(job.meta.assisting) do
-                    if job.meta.assisting[assistIndex].thread == threadID then
-                        if job.meta.assisting[assistIndex].engie and not job.meta.assisting[assistIndex].engie.Dead then
-                            job.meta.assisting[assistIndex].engie.CustomData.assistComplete = true
+                for k, v in job.meta.assisting do
+                    if v.thread == threadID then
+                        if v.unit and not v.unit.Dead then
+                            v.unit.CustomData.assistComplete = true
                         end
-                        table.remove(job.meta.assisting,assistIndex)
-                    else
-                        assistIndex = assistIndex + 1
                     end
                 end
             end
         end
-        if index and (not self.mobileJobs[index].job.keep) and self.mobileJobs[index].meta.activeCount == 0 and self.mobileJobs[index].job.count == 0 then
-            table.remove(self.mobileJobs,index)
-        elseif index and self.mobileJobs[index].meta.failures >= 10 then
+        if index and (not jobs[index].job.keep) and jobs[index].meta.activeCount <= 0 and jobs[index].job.count <= 0 then
+            table.remove(jobs,index)
+        elseif index and jobs[index].meta.failures >= 10 then
             -- Some kind of issue with this job, so stop assigning it.
-            if self.mobileJobs[index].job.keep then
-                WARN("BaseController: Repeated Job failure, de-prioritising: "..tostring(self.mobileJobs[index].job.work))
-                self.mobileJobs[index].job.priority = -1
-                self.mobileJobs[index].job.failed = true
+            if jobs[index].job.keep then
+                WARN("BaseController: Repeated Job failure, de-prioritising: "..tostring(jobs[index].job.work))
+                jobs[index].job.priority = -1
+                jobs[index].job.failed = true
             else
-                WARN("BaseController: Repeated Job failure, removing: "..tostring(self.mobileJobs[index].job.work))
-                table.remove(self.mobileJobs,index)
+                WARN("BaseController: Repeated Job failure, removing: "..tostring(jobs[index].job.work))
+                table.remove(jobs,index)
             end
         elseif not index then
             WARN("BaseController: Unable to complete job!")
-        end
-    end,
-    OnCompleteFactory = function(self,fac,jobID,buildRate)
-        -- Delete a job
-        local index
-        for i, job in self.factoryJobs do
-            if job.meta.id == jobID then
-                job.job.count = job.job.count - 1
-                local tBP = GetUnitBlueprintByName(Translation[job.job.work][fac.factionCategory])
-                job.meta.spend = job.meta.spend - buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
-                job.meta.activeCount = job.meta.activeCount - 1
-                index = i
-            end
-        end
-        if index and (not self.factoryJobs[index].job.keep) and self.factoryJobs[index].meta.activeCount == 0 and self.factoryJobs[index].job.count == 0 then
-            table.remove(self.factoryJobs,index)
         end
     end,
 
@@ -174,27 +169,27 @@ BaseController = Class({
                 if not engie.CustomData then
                     engie.CustomData = {}
                 end
-                engie.CustomData.engieAssigned = true
-                table.insert(job.meta.assisting,{ engie = engie, thread = assist.thread, myThread = thread, bp = v.bp })
+                engie.CustomData.isAssigned = true
+                table.insert(job.meta.assisting,{ unit = engie, thread = assist.thread, myThread = thread, bp = v.bp })
                 return buildRate
             end
         end
         WARN("BaseController: Unable to find assist target!")
         return nil
     end,
-    DoMobileAssignment = function(self,engie,job,threadID)
-        -- Update job metadata to reflect this engie being assigned to the given job
-        local tBP = GetUnitBlueprintByName(Translation[job.job.work][engie.factionCategory])
-        local buildRate = engie:GetBuildRate()
+    DoJobAssignment = function(self,unit,job,threadID)
+        -- Update job metadata to reflect this unit being assigned to the given job
+        local tBP = GetUnitBlueprintByName(Translation[job.job.work][unit.factionCategory])
+        local buildRate = unit:GetBuildRate()
         job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
-        -- Set a flag to tell everyone this engie is busy
-        if not engie.CustomData then
-            engie.CustomData = {}
+        -- Set a flag to tell everyone this unit is busy
+        if not unit.CustomData then
+            unit.CustomData = {}
         end
-        engie.CustomData.engieAssigned = true
-        --LOG("Assigning: "..tostring(engie.Dead)..", "..tostring(job.meta.id)..", "..tostring(threadID))
-        table.insert(job.meta.assigned,{ engie = engie, thread = threadID, bp = tBP })
+        unit.CustomData.isAssigned = true
+        --LOG("Assigning: "..tostring(unit.Dead)..", "..tostring(job.meta.id)..", "..tostring(threadID))
+        table.insert(job.meta.assigned,{ unit = unit, thread = threadID, bp = tBP })
         return buildRate
     end,
 
@@ -205,7 +200,7 @@ BaseController = Class({
         while activeJob do
             if assistData then
                 TroopFunctions.EngineerAssist(engie,assistData.unit)
-                self:OnCompleteMobileAssist(activeJob.meta.id,buildRate,threadID)
+                self:OnCompleteAssist(activeJob.meta.id,buildRate,threadID)
             else
                 local unitID = Translation[activeJob.job.work][engie.factionCategory]
                 -- Build the thing
@@ -218,17 +213,16 @@ BaseController = Class({
                     success = TroopFunctions.EngineerBuildStructure(self.brain,engie,unitID)
                 end
                 -- Return engie back to the pool
-                self:OnCompleteMobile(engie,activeJob.meta.id,not success,buildRate,threadID)
+                self:OnCompleteJob(engie,activeJob.meta.id,not success,buildRate,threadID,self.mobileJobs)
             end
-            if engie and not engie.Dead then
+            if engie and (not engie.Dead) and (not engie.CustomData.excludeAssignment) then
                 activeJob = self:IdentifyJob(engie,self.mobileJobs)
                 if activeJob then
                     assistData = self:FindAssistInRadius(engie,activeJob,self.assistRadius)
                     if assistData then
                         self:DoMobileAssist(engie,activeJob,assistData,threadID)
                     else
-                        -- Bug somewhere around here...
-                        self:DoMobileAssignment(engie,activeJob,threadID)
+                        self:DoJobAssignment(engie,activeJob,threadID)
                     end
                 end
             else
@@ -236,29 +230,30 @@ BaseController = Class({
             end
         end
         if engie and not engie.Dead then
-            engie.CustomData.engieAssigned = false
+            engie.CustomData.isAssigned = false
         end
     end,
-    RunFactoryJobThread = function(self,job,fac,buildRate)
+    RunFactoryJobThread = function(self,job,fac,buildRate,threadID)
+        -- TODO: Support assistance
         local activeJob = job
         while activeJob do
             local unitID = Translation[activeJob.job.work][fac.factionCategory]
             -- Build the thing
             TroopFunctions.FactoryBuildUnit(fac,unitID)
             -- Return fac back to the pool
-            self:OnCompleteFactory(fac,activeJob.meta.id,buildRate)
-            if fac and not fac.Dead then
-                activeJob = self:IdentifyJob(fac,self.mobileJobs)
+            self:OnCompleteJob(fac,activeJob.meta.id,false,buildRate,threadID,self.factoryJobs)
+            if fac and not fac.Dead and not fac.CustomData.excludeAssignment then
+                activeJob = self:IdentifyJob(fac,self.factoryJobs)
                 if activeJob then
-                    local tBP = GetUnitBlueprintByName(Translation[activeJob.job.work][fac.factionCategory])
-                    activeJob.meta.spend = activeJob.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
-                    activeJob.meta.activeCount = activeJob.meta.activeCount + 1
+                    self:DoJobAssignment(fac,activeJob,threadID)
                 end
             else
                 return
             end
         end
-        fac.CustomData.facAssigned = false
+        if fac and not fac.Dead then
+            fac.CustomData.isAssigned = false
+        end
     end,
 
     AssignJobMobile = function(self,engie,job)
@@ -270,23 +265,17 @@ BaseController = Class({
         if assist then
             buildRate = self:DoMobileAssist(engie,job,assist,threadID)
         else
-            buildRate = self:DoMobileAssignment(engie,job,threadID)
+            buildRate = self:DoJobAssignment(engie,job,threadID)
         end
         -- Update job metadata
         self:ForkThread(self.RunMobileJobThread,job,engie,assist,buildRate,threadID)
     end,
     AssignJobFactory = function(self,fac,job)
+        local threadID = self:GetThreadID()
+        -- This must be done before we fork, or we risk over-assigning units to this job
+        local buildRate = self:DoJobAssignment(fac,job,threadID)
         -- Update job metadata
-        local tBP = GetUnitBlueprintByName(Translation[job.job.work][fac.factionCategory])
-        local buildRate = fac:GetBuildRate()
-        job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
-        job.meta.activeCount = job.meta.activeCount + 1
-        -- Set a flag to tell everyone this fac is busy
-        if not fac.CustomData then
-            fac.CustomData = {}
-        end
-        fac.CustomData.facAssigned = true
-        self:ForkThread(self.RunFactoryJobThread,job,fac,buildRate)
+        self:ForkThread(self.RunFactoryJobThread,job,fac,buildRate,threadID)
     end,
 
     FindAssistInRadius = function(self,engie,job,radius)
@@ -296,9 +285,9 @@ BaseController = Class({
         local best
         local myPos = engie:GetPosition()
         for _, v in job.meta.assigned do
-            local theirPos = v.engie:GetPosition()
-            if self.brain.intel:CanPathToSurface(myPos,theirPos) and VDist3(myPos,theirPos) < self.assistRadius then
-                return { unit = v.engie, thread = v.thread }
+            local theirPos = v.unit:GetPosition()
+            if self.brain.intel:CanPathToSurface(myPos,theirPos) and VDist3(myPos,theirPos) < self.assistRadius and not v.unit:IsBeingBuilt() then
+                return { unit = v.unit, thread = v.thread }
             end
         end
         return nil
@@ -313,7 +302,7 @@ BaseController = Class({
         elseif job.job.work == "Hydro" and not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon") then
             return false
         end
-        if job.job.priority <= 0 then
+        if job.job.priority <= 0 or job.job.count <= 0 or job.job.targetSpend < 0 then
             return false
         end
         if job.job.com and not EntityCategoryContains(categories.COMMAND,unit) then
@@ -365,8 +354,7 @@ BaseController = Class({
     IdentifyJob = function(self,unit,jobs)
         -- TODO: Add factory assistance support
         local bestJob
-        for i=1,table.getn(jobs) do
-            local job = jobs[i]
+        for _, job in jobs do
             -- TODO: Support assitance
             -- TODO: Support location constraints
             if self:CanDoJob(unit,job) and self:CheckPriority(bestJob,job) then
@@ -400,7 +388,7 @@ BaseController = Class({
         local n = 0
         local engies = {}
         for _, v in units do
-            if (not v.CustomData or ((not v.CustomData.excludeEngie) and (not v.CustomData.engieAssigned))) and not v:IsBeingBuilt() and not v.Dead then
+            if (not v.CustomData or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned))) and not v:IsBeingBuilt() and not v.Dead then
                 n = n+1
                 engies[n] = v
             end
@@ -412,7 +400,7 @@ BaseController = Class({
         local n = 0
         local facs = {}
         for _, v in units do
-            if not v.CustomData or ((not v.CustomData.excludeFac) and (not v.CustomData.facAssigned)) then
+            if not v.CustomData or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned)) then
                 n = n+1
                 facs[n] = v
             end
@@ -425,7 +413,7 @@ BaseController = Class({
         while self.brain:IsAlive() do
             i = i+1
             self:AssignEngineers(self:GetEngineers())
-            if math.mod(i,10) == 5 then
+            if math.mod(i,10) == 0 then
                 --self:LogJobs()
             end
             WaitSeconds(1)
@@ -460,6 +448,17 @@ BaseController = Class({
         self:ForkThread(self.MonitorBOCompletion)
     end,
 
+    LogAssisters = function(self,id)
+        for k, v in self.mobileJobs do
+            if v.meta.id == id then
+                s = ""
+                for _, v1 in v.meta.assisting do
+                    s = s.."("..tostring(v1.thread)..","..tostring(v1.myThread)..") "
+                end
+                LOG(tostring(k)..") { "..s.."}")
+            end
+        end
+    end,
     LogMobileJobs = function(self)
         LOG("===== LOGGING MOBILE JOBS =====")
         for k, v in self.mobileJobs do
@@ -490,31 +489,34 @@ BaseController = Class({
         end
         
     end,
-
     LogJobs = function(self)
         LOG("===== LOGGING BASECONTROLLER JOBS =====")
         LOG("MOBILE:")
         for k, v in self.mobileJobs do
-            LOG("\t"..tostring(k)..":\t"..tostring(v.job.work)..", "..tostring(v.job.priority)..", "..tostring(v.job.targetSpend)..", "..tostring(v.job.buildOrder)..", "..tostring(v.job.count)..", "..tostring(v.job.duplicates)..", "..tostring(v.meta.id)..", "..tostring(v.meta.spend))
+            LOG("\t"..tostring(k)..":\t"..tostring(v.job.work)..", "..tostring(v.meta.id)..", "..tostring(v.job.targetSpend)..", "..tostring(v.job.actualSpend)..", "..tostring(v.meta.spend)..", "..tostring(v.job.count))
         end
         LOG("FACTORY:")
         for k, v in self.factoryJobs do
-            LOG("\t"..tostring(k)..":\t"..tostring(v.job.work)..", "..tostring(v.job.priority)..", "..tostring(v.job.targetSpend)..", "..tostring(v.job.buildOrder)..", "..tostring(v.job.count)..", "..tostring(v.job.duplicates)..", "..tostring(v.meta.id)..", "..tostring(v.meta.spend))
+            LOG("\t"..tostring(k)..":\t"..tostring(v.job.work)..", "..tostring(v.meta.id)..", "..tostring(v.job.targetSpend)..", "..tostring(v.job.actualSpend)..", "..tostring(v.meta.spend)..", "..tostring(v.job.count))
         end
         LOG("===== END LOG =====")
     end,
-
 
     BaseIssueBuildMobile = function(self, units, pos, bp, id)
         table.insert(self.pendingStructures, { pos=table.copy(pos), bp=bp, units=table.copy(units), id=id })
         IssueBuildMobile(units,pos,bp.BlueprintId,{})
     end,
     BaseCompleteBuildMobile = function(self, id)
+        local index = 0
         for k, v in self.pendingStructures do
             if v.id == id then
-                table.remove(self.pendingStructures,k)
-                return
+                index = k
             end
+        end
+        if not (index == 0) then
+            table.remove(self.pendingStructures,index)
+        else
+            WARN("BaseController: No pending structure found! ("..tostring(id)..")")
         end
     end,
 

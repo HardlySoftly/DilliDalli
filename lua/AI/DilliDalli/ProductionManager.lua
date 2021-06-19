@@ -48,10 +48,16 @@ ProductionManager = Class({
     AllocateResources = function(self)
         -- TODO: subsidiary production and proper management
         -- TODO: tune up allocations based on mass storage
+        local availableMass = self.brain.monitor.mass.income
+        local section0 = math.min(6,availableMass)
+        local section1 = math.min(14,availableMass-section0)
+        local section2 = availableMass-section0-section1
         -- Base allocation
-        self.allocations[1].mass = self.brain.monitor.mass.income*0.3
+        self.allocations[1].mass = section0 + 0.2*section1 + 0.2*section2
         -- Land allocation
-        self.allocations[2].mass = self.brain.monitor.mass.income*0.7
+        self.allocations[2].mass = section1*0.8+section2*0.7
+        -- Air allocation
+        self.allocations[3].mass = section2*0.1
     end,
 
     ForkThread = function(self, fn, ...)
@@ -95,7 +101,7 @@ BaseProduction = Class({
         self.mexJob.targetSpend = JOB_INF
         self.mexJob.work = "MexT1"
         self.mexJob.keep = true
-        self.mexJob.priority = NORMAL
+        self.mexJob.priority = LOW
         self.mexJob.assist = false
         self.brain.base:AddMobileJob(self.mexJob)
         -- Pgens - controlled via target spend
@@ -122,7 +128,7 @@ BaseProduction = Class({
     ManageJobs = function(self,mass)
         local massRemaining = mass
         local availableMex = self.brain.intel:GetNumAvailableMassPoints()
-        self.mexJob.duplicates = availableMex/2
+        self.mexJob.duplicates = math.min(availableMex/2,math.max(self.brain.monitor.units.engies.t1-4,self.brain.monitor.units.engies.t1/1.5))
         local engiesRequired = 4+math.min(10,availableMex/2)-self.brain.monitor.units.engies.t1
         -- Drop out early if we're still doing our build order
         if not self.brain.base.isBOComplete then
@@ -130,10 +136,11 @@ BaseProduction = Class({
             return nil
         end
         -- Do I need more pgens?
-        local pgenSpend = math.min(massRemaining,(self.brain.monitor.energy.spend*1.2 - self.brain.monitor.energy.income)/8)
+        local pgenSpend = math.min(massRemaining,(self.brain.monitor.energy.spend*1.2 - self.brain.monitor.energy.income)/4)
+        --LOG("Pgen stats: "..tostring(pgenSpend)..": "..tostring(self.brain.monitor.energy.spend)..", "..tostring(self.brain.monitor.energy.income)..", "..tostring(self.pgenJob.actualSpend))
         self.pgenJob.targetSpend = pgenSpend
         massRemaining = massRemaining - pgenSpend
-        engiesRequired = engiesRequired + math.max(0,pgenSpend/4)
+        engiesRequired = engiesRequired + math.max(0,pgenSpend/3)
         -- Do I need some mex upgrades?
         -- TODO: this.
         -- How many engies do I need?
@@ -196,10 +203,31 @@ AirProduction = Class({
     Initialise = function(self,brain,coord)
         self.brain = brain
         self.coord = coord
+        self.intieJob = self.brain.base:CreateGenericJob()
+        self.intieJob.duplicates = JOB_INF
+        self.intieJob.count = JOB_INF
+        self.intieJob.targetSpend = 0
+        self.intieJob.work = "IntieT1"
+        self.intieJob.keep = true
+        self.intieJob.priority = NORMAL
+        self.brain.base:AddFactoryJob(self.intieJob)
+        self.facJob = self.brain.base:CreateGenericJob()
+        self.facJob.duplicates = JOB_INF
+        self.facJob.count = JOB_INF
+        self.facJob.targetSpend = 0
+        self.facJob.work = "AirFactoryT1"
+        self.facJob.keep = true
+        self.facJob.priority = NORMAL
+        self.brain.base:AddMobileJob(self.facJob)
     end,
 
     -- Called every X ticks, does the job management.  Passed the mass assigned this funding round.
     ManageJobs = function(self,mass)
+        self.intieJob.targetSpend = mass*1.2
+        self.facJob.targetSpend = 0
+        if self.brain.monitor.units.facs.air.idle.t1 == 0 and self.brain.base.isBOComplete then
+            self.facJob.targetSpend = mass - self.intieJob.actualSpend
+        end
     end,
 })
 
