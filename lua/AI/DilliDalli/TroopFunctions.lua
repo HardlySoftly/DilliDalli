@@ -41,7 +41,7 @@ function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, r
     local ringIndex = 0
     local iterations = 0
     local result
-    local maxIterations = 1000000 -- 1000x1000 square
+    local maxIterations = 100000 -- 300x300 square
     while iterations < maxIterations do
         iterations = iterations + 1
         if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) and intelManager:CanPathToSurface(location,targetLocation)
@@ -95,6 +95,7 @@ function EngineerBuildStructure(brain,engie,structure,location,radius)
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
         local constructionID = Random(0,1073741823)
         brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
+        WaitTicks(2)
         while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
         end
@@ -115,6 +116,7 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
         local constructionID = Random(0,1073741823)
         brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
+        WaitTicks(2)
         while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
             WaitTicks(2)
         end
@@ -133,6 +135,7 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
         end
         return true
     else
+        -- TODO: debug why this sometimes happens
         WARN("Failed to find position for markerType: "..tostring(markerType))
         return false
     end
@@ -141,6 +144,7 @@ end
 function EngineerAssist(engie,target)
     IssueClearCommands({engie})
     IssueGuard({engie},target)
+    WaitTicks(2)
     while target and (not target.Dead) and engie and (not engie.Dead) and (not engie.CustomData.assistComplete) do
         WaitTicks(2)
     end

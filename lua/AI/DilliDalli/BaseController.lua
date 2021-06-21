@@ -1,5 +1,6 @@
 local TroopFunctions = import('/mods/DilliDalli/lua/AI/DilliDalli/TroopFunctions.lua')
 local Translation = import('/mods/DilliDalli/lua/AI/DilliDalli/FactionCompatibility.lua').translate
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
 
 BaseController = Class({
     Initialise = function(self,brain)
@@ -7,6 +8,7 @@ BaseController = Class({
         self.jobID = 1
         self.mobileJobs = {}
         self.factoryJobs = {}
+        self.upgradeJobs = {}
         self.idle = {}
         self.pendingStructures = { }
         self.isBOComplete = false
@@ -43,7 +45,7 @@ BaseController = Class({
             failed = false,
             -- Feedback to the job creator on how much is being spent on this job.
             actualSpend = 0,
-            -- Should other untis assist this job?
+            -- Should other units assist this job?
             assist = true,
         }
     end,
@@ -58,6 +60,12 @@ BaseController = Class({
         local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="factory" }
         self.jobID = self.jobID + 1
         table.insert(self.factoryJobs, { job = job, meta=meta })
+        return meta
+    end,
+    AddUpgradeJob = function(self,job)
+        local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="upgrade" }
+        self.jobID = self.jobID + 1
+        table.insert(self.upgradeJobs, { job = job, meta=meta })
         return meta
     end,
 
@@ -142,7 +150,7 @@ BaseController = Class({
                 end
             end
         end
-        if index and (not jobs[index].job.keep) and jobs[index].meta.activeCount <= 0 and jobs[index].job.count <= 0 then
+        if index ~= 0 and (not jobs[index].job.keep) and jobs[index].meta.activeCount <= 0 and jobs[index].job.count <= 0 then
             table.remove(jobs,index)
         elseif index and jobs[index].meta.failures >= 10 then
             -- Some kind of issue with this job, so stop assigning it.
@@ -197,14 +205,15 @@ BaseController = Class({
         -- TODO: Support assistance
         local activeJob = job
         local assistData = assist
+        local success = false
         while activeJob do
             if assistData then
                 TroopFunctions.EngineerAssist(engie,assistData.unit)
                 self:OnCompleteAssist(activeJob.meta.id,buildRate,threadID)
+                success = true
             else
                 local unitID = Translation[activeJob.job.work][engie.factionCategory]
                 -- Build the thing
-                local success
                 if activeJob.job.work == "MexT1" or activeJob.job.work == "MexT2" or activeJob.job.work == "MexT3" then
                     success = TroopFunctions.EngineerBuildMarkedStructure(self.brain,engie,unitID,"Mass")
                 elseif activeJob.job.work == "Hydro" then
@@ -215,7 +224,7 @@ BaseController = Class({
                 -- Return engie back to the pool
                 self:OnCompleteJob(engie,activeJob.meta.id,not success,buildRate,threadID,self.mobileJobs)
             end
-            if engie and (not engie.Dead) and (not engie.CustomData.excludeAssignment) then
+            if success and engie and (not engie.Dead) and (not engie.CustomData.excludeAssignment) then
                 activeJob = self:IdentifyJob(engie,self.mobileJobs)
                 if activeJob then
                     assistData = self:FindAssistInRadius(engie,activeJob,self.assistRadius)
@@ -255,6 +264,28 @@ BaseController = Class({
             fac.CustomData.isAssigned = false
         end
     end,
+    RunUpgradeJobThread = function(self,job,unit,buildRate,threadID)
+        -- while assigned wait
+        while unit and (not unit.Dead) and unit.CustomData.isAssigned do
+            -- Probs fine, number of upgrades at any one time will be "smallish"
+            WaitTicks(1)
+        end
+        if unit and (not unit.Dead) then
+            -- Issue upgrade
+            LOG("Issuing upgrade")
+            IssueClearCommands({unit})
+            IssueUpgrade({unit},Translation[job.job.work][unit.factionCategory])
+        end
+        while unit and (not unit.Dead) and (not unit:IsIdleState()) do
+            -- Still probably fine
+            WaitTicks(2)
+        end
+        -- reset exclusion flag, to release the unit for jobs
+        if unit and (not unit.Dead) then
+            unit.CustomData.excludeAssignment = nil
+        end
+        self:OnCompleteJob(unit,job.meta.id,false,buildRate,threadID,self.upgradeJobs)
+    end,
 
     AssignJobMobile = function(self,engie,job)
         local threadID = self:GetThreadID()
@@ -267,15 +298,28 @@ BaseController = Class({
         else
             buildRate = self:DoJobAssignment(engie,job,threadID)
         end
-        -- Update job metadata
         self:ForkThread(self.RunMobileJobThread,job,engie,assist,buildRate,threadID)
     end,
     AssignJobFactory = function(self,fac,job)
         local threadID = self:GetThreadID()
         -- This must be done before we fork, or we risk over-assigning units to this job
         local buildRate = self:DoJobAssignment(fac,job,threadID)
-        -- Update job metadata
         self:ForkThread(self.RunFactoryJobThread,job,fac,buildRate,threadID)
+    end,
+    AssignUpgradeJob = function(self,unit,job)
+        local threadID = self:GetThreadID()
+        -- I can't use the regular job assignment, since units are passed in here that may already be on jobs.
+        local tBP = GetUnitBlueprintByName(Translation[job.job.work][unit.factionCategory])
+        local buildRate = unit:GetBuildRate()
+        job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
+        job.meta.activeCount = job.meta.activeCount + 1
+        -- Exclude this unit from additional jobs, so we can reserve it for an upgrade.  Pertinent for factories.
+        if not unit.CustomData then
+            unit.CustomData = {}
+        end
+        unit.CustomData.excludeAssignment = true
+        table.insert(job.meta.assigned,{ unit = unit, thread = threadID, bp = tBP })
+        self:ForkThread(self.RunUpgradeJobThread,job,unit,buildRate,threadID)
     end,
 
     FindAssistInRadius = function(self,engie,job,radius)
@@ -366,6 +410,7 @@ BaseController = Class({
 
     AssignEngineers = function(self,allEngies)
         -- TODO: implement full stable matching algorithm
+        -- TODO: implement job queues (take eta into account when considering location specific jobs)
         for i=1,table.getn(allEngies) do
             local job = self:IdentifyJob(allEngies[i],self.mobileJobs)
             if job then
@@ -382,13 +427,42 @@ BaseController = Class({
             end
         end
     end,
+    AssignUpgrades = function(self)
+        -- TODO: fix location thingy
+        local myPos = self.brain.intel.allies[1]
+        for _, job in self.upgradeJobs do
+            local units
+            -- Get the right kind of units for upgrading
+            if job.job.targetSpend <= 0 or job.job.count <= 0 or job.job.duplicates <= 0 then
+                continue
+            elseif job.job.work == "MexT2" or job.job.work == "MexT3" then
+                units = self.brain.aiBrain:GetListOfUnits(categories.MASSEXTRACTION*categories.STRUCTURE,false,true)
+            elseif job.job.work == "LandHQT2" or job.job.work == "LandHQT3" or job.job.work == "LandSupportT2" or job.job.work == "LandSupportT3" then
+                units = self.brain.aiBrain:GetListOfUnits(categories.LAND*categories.FACTORY*categories.STRUCTURE,false,true)
+            elseif job.job.work == "AirHQT2" or job.job.work == "AirHQT3" or job.job.work == "AirSupportT2" or job.job.work == "AirSupportT3" then
+                units = self.brain.aiBrain:GetListOfUnits(categories.AIR*categories.FACTORY*categories.STRUCTURE,false,true)
+            end
+            local prioritisedUnits = CreatePriorityQueue()
+            for _, unit in units do
+                if (not unit) or unit.Dead or (not unit:CanBuild(Translation[job.job.work][unit.factionCategory])) or unit.CustomData.excludeAssignment or unit:IsBeingBuilt() then
+                    -- Can't upgrade to the relevant unit
+                    continue
+                else
+                    prioritisedUnits:Queue({ unit = unit, priority = VDist3(unit:GetPosition(),myPos) })
+                end
+            end
+            while job.meta.spend < job.job.targetSpend and job.meta.activeCount < job.job.duplicates and job.meta.activeCount < job.job.count and prioritisedUnits:Size() > 0 do
+                self:AssignUpgradeJob(prioritisedUnits:Dequeue().unit,job)
+            end
+        end
+    end,
 
     GetEngineers = function(self)
         local units = self.brain.aiBrain:GetListOfUnits(categories.MOBILE*categories.ENGINEER,false,true)
         local n = 0
         local engies = {}
         for _, v in units do
-            if (not v.CustomData or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned))) and not v:IsBeingBuilt() and not v.Dead then
+            if (not v.CustomData or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned))) and (not v:IsBeingBuilt()) and (not v.Dead) then
                 n = n+1
                 engies[n] = v
             end
@@ -400,7 +474,7 @@ BaseController = Class({
         local n = 0
         local facs = {}
         for _, v in units do
-            if not v.CustomData or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned)) then
+            if ((not v.CustomData) or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned))) and (not v.Dead)  then
                 n = n+1
                 facs[n] = v
             end
@@ -421,12 +495,17 @@ BaseController = Class({
     end,
     FactoryManagementThread = function(self)
         while self.brain:IsAlive() do
-            --LOG("Assigning Engineers...")
             self:AssignFactories(self:GetFactories())
-            --self:LogJobs()
             WaitSeconds(1)
         end
     end,
+    UpgradeManagementThread = function(self)
+        while self.brain:IsAlive() do
+            self:AssignUpgrades()
+            WaitSeconds(3)
+        end
+    end,
+
     MonitorBOCompletion = function(self)
         local isComplete = false
         while self.brain:IsAlive() and not isComplete do
@@ -445,6 +524,7 @@ BaseController = Class({
     Run = function(self)
         self:ForkThread(self.EngineerManagementThread)
         self:ForkThread(self.FactoryManagementThread)
+        self:ForkThread(self.UpgradeManagementThread)
         self:ForkThread(self.MonitorBOCompletion)
     end,
 
@@ -487,7 +567,7 @@ BaseController = Class({
                 end
             end
         end
-        
+
     end,
     LogJobs = function(self)
         LOG("===== LOGGING BASECONTROLLER JOBS =====")

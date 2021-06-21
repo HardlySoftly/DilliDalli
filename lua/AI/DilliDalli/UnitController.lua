@@ -135,17 +135,14 @@ LandController = Class({
         local retreat = 0
         while self.brain:IsAlive() do
             -- tidy up group, return if it's empty (i.e. all units dead)
-            local index = 1
-            while index ~= 0 do
-                index = 0
-                for k, v in group do
-                    if not v or v.Dead then
-                        index = k
-                        break
-                    end
-                end
-                if index ~= 0 then
-                    table.remove(group,index)
+            local n = table.getn(group)
+            local i = 1
+            while i<=n do
+                if (not group[i]) or group[i].Dead then
+                    table.remove(group,i)
+                    n = n-1
+                else
+                    i = i+1
                 end
             end
             if table.getn(group) == 0 then

@@ -122,6 +122,15 @@ BaseProduction = Class({
         self.engieJob.keep = true
         self.engieJob.priority = NORMAL
         self.brain.base:AddFactoryJob(self.engieJob)
+        -- Mass upgrades - controlled via target spend
+        self.mext2Job = self.brain.base:CreateGenericJob()
+        self.mext2Job.duplicates = JOB_INF
+        self.mext2Job.count = JOB_INF
+        self.mext2Job.targetSpend = 0
+        self.mext2Job.work = "MexT2"
+        self.mext2Job.keep = true
+        self.mext2Job.priority = NORMAL
+        self.brain.base:AddUpgradeJob(self.mext2Job)
     end,
 
     -- Called every X ticks, does the job management.  Passed the mass assigned this funding round.
