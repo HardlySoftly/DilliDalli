@@ -19,6 +19,7 @@ LandLand = {
         { work="LandFactoryT1", priority=1, location=nil, distance=0, targetSpend=10, buildOrder=true, count=1, duplicates=1, keep=false, com=true, assist=true },
     },
     factory = {
-        { work="EngineerT1", priority=1, location=nil, distance=0, targetSpend=20, buildOrder=true, count=4, duplicates=1, keep=false, assist=false },
+        { work="EngineerT1", priority=2, location=nil, distance=0, targetSpend=20, buildOrder=true, count=3, duplicates=1, keep=false, assist=false },
+        { work="DirectFireT1", priority=1, location=nil, distance=0, targetSpend=20, buildOrder=true, count=2, duplicates=1, keep=false, assist=false },
     }
 }

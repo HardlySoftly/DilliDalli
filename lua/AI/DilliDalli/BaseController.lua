@@ -21,8 +21,8 @@ BaseController = Class({
         return self.tID
     end,
 
-    CreateGenericJob = function(self)
-        return {
+    CreateGenericJob = function(self,config)
+        local job = {
             -- The thing to build
             work = nil,
             -- How important is it?
@@ -48,6 +48,12 @@ BaseController = Class({
             -- Should other units assist this job?
             assist = true,
         }
+        if config then
+            for k, v in config do
+                job[k] = v
+            end
+        end
+        return job
     end,
 
     AddMobileJob = function(self,job)
@@ -235,7 +241,7 @@ BaseController = Class({
                     end
                 end
             else
-                return
+                activeJob = nil
             end
         end
         if engie and not engie.Dead then
@@ -251,16 +257,16 @@ BaseController = Class({
             TroopFunctions.FactoryBuildUnit(fac,unitID)
             -- Return fac back to the pool
             self:OnCompleteJob(fac,activeJob.meta.id,false,buildRate,threadID,self.factoryJobs)
-            if fac and not fac.Dead and not fac.CustomData.excludeAssignment then
+            if fac and (not fac.Dead) and (not fac.CustomData.excludeAssignment) then
                 activeJob = self:IdentifyJob(fac,self.factoryJobs)
                 if activeJob then
                     self:DoJobAssignment(fac,activeJob,threadID)
                 end
             else
-                return
+                activeJob = nil
             end
         end
-        if fac and not fac.Dead then
+        if fac and (not fac.Dead) then
             fac.CustomData.isAssigned = false
         end
     end,
@@ -272,10 +278,11 @@ BaseController = Class({
         end
         if unit and (not unit.Dead) then
             -- Issue upgrade
-            LOG("Issuing upgrade")
+            --LOG("Issuing upgrade")
             IssueClearCommands({unit})
             IssueUpgrade({unit},Translation[job.job.work][unit.factionCategory])
         end
+        WaitTicks(2)
         while unit and (not unit.Dead) and (not unit:IsIdleState()) do
             -- Still probably fine
             WaitTicks(2)
@@ -342,8 +349,16 @@ BaseController = Class({
         if (job.job.work == "MexT1" or job.job.work == "MexT2" or job.job.work == "MexT3") then
             if not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Mass") then
                 return false
+            elseif (not EntityCategoryContains(categories.TECH1,unit)) and self.isBOComplete then
+                return false
             end
-        elseif job.job.work == "Hydro" and not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon") then
+        elseif job.job.work == "Hydro" then
+            if not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon") then
+                return false
+            elseif (not EntityCategoryContains(categories.TECH1,unit)) and self.isBOComplete then
+                return false
+            end
+            -- TODO
             return false
         end
         if job.job.priority <= 0 or job.job.count <= 0 or job.job.targetSpend < 0 then
@@ -601,6 +616,7 @@ BaseController = Class({
     end,
 
     LocationIsClear = function(self, location, bp)
+        -- TODO: Fix this, noticed it's not working quite right
         -- Checks if any planned buildings overlap with this building.  Return true if they do not.
         local cornerX0 = location[1]+bp.SizeX/2
         local cornerZ0 = location[3]+bp.SizeZ/2

@@ -133,6 +133,18 @@ IntelManager = Class({
         return { pos = table.copy(pos), weight = weight, control = { land = { ally = 0, enemy = 0 }, air = { ally = 0, enemy = 0 } }, edges = {} }
     end,
 
+    FindZone = function(self,pos)
+        local best = nil
+        local bestDist = 0
+        for _, v in self.zones do
+            if (not best) or VDist3(pos,v.pos) < bestDist then
+                best = v
+                bestDist = VDist3(pos,v.pos)
+            end
+        end
+        return best
+    end,
+
     GenerateMapZones = function(self)
         self.zones = {}
         local massPoints = {}
@@ -222,6 +234,26 @@ IntelManager = Class({
         return totalThreat
     end,
 
+    GetLandThreatAndPos = function(self,units)
+        local totalThreat = 0
+        local x = 0
+        local z = 0
+        for _, unit in units do
+            local t = self:GetUnitLandThreat(unit)
+            totalThreat = totalThreat + t
+            local pos = unit:GetPosition()
+            x = x + pos[1]
+            z = z + pos[3]
+        end
+        if totalThreat == 0 then
+            return { threat = 0, pos = nil }
+        else
+            x = x/totalThreat
+            z = z/totalThreat
+            return { threat = totalThreat, pos = {x, GetSurfaceHeight(x,z), z} }
+        end
+    end,
+
     GetUnitLandThreat = function(self,unit)
         if self.threatTable.land[unit.UnitId] then
             return self.threatTable.land[unit.UnitId]
@@ -251,6 +283,16 @@ IntelManager = Class({
         return threat
     end,
 
+    GetAirThreat = function(self,units)
+        local threat = 0
+        for _, unit in units do
+            if EntityCategoryContains(categories.AIR*categories.MOBILE,unit) then
+                threat = threat + 1
+            end
+        end
+        return threat
+    end,
+
     MonitorMapZones = function(self)
         local myIndex = self.brain.aiBrain:GetArmyIndex()
         for _, v in self.zones do
@@ -258,6 +300,8 @@ IntelManager = Class({
             local allies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,v.pos,self.zoneRadius,'Ally')
             v.control.land.enemy = self:GetLandThreat(enemies)
             v.control.land.ally = self:GetLandThreat(allies)
+            v.control.air.enemy = self:GetAirThreat(enemies)
+            v.control.air.ally = self:GetAirThreat(allies)
         end
     end,
 
@@ -284,7 +328,7 @@ IntelManager = Class({
 
     Run = function(self)
         self:ForkThread(self.MapMonitoringThread)
-        self:ForkThread(self.MapDrawingThread)
+        --self:ForkThread(self.MapDrawingThread)
     end,
 
     GetNeighbours = function(self,i,j)

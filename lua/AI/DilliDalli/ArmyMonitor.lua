@@ -95,9 +95,18 @@ ArmyMonitor = Class({
         self.units = {
             engies = { t1=0, t2=0, t3=0 },
             facs = {
-                land = { total = { t1=0, t2=0, t3=0 }, idle = { t1=0, t2=0, t3=0 }},
-                air = { total = { t1=0, t2=0, t3=0 }, idle = { t1=0, t2=0, t3=0 }},
+                land = { total = { t1=0, t2=0, t3=0 }, idle = { t1=0, t2=0, t3=0 }, hq = { t2 = 0, t3 = 0 } },
+                air = { total = { t1=0, t2=0, t3=0 }, idle = { t1=0, t2=0, t3=0 }, hq = { t2 = 0, t3 = 0 } },
             },
+            land = {
+                mass = { total = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0 },
+                count = { total = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, scout = 0 },
+            },
+            air = {
+                mass = { total = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0 },
+                count = { total = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0 },
+            },
+            mex = { t1=0, t2=0, t3=0 },
         }
     end,
 
@@ -118,6 +127,7 @@ ArmyMonitor = Class({
             local isLandFac = EntityCategoryContains(categories.FACTORY*categories.LAND,unit)
             if isLandFac then
                 local isIdle = unit:IsIdleState()
+                local isHQ = EntityCategoryContains(categories.RESEARCH,unit)
                 if EntityCategoryContains(categories.TECH1,unit) then
                     self.units.facs.land.total.t1 = self.units.facs.land.total.t1 + 1
                     if isIdle then
@@ -128,10 +138,16 @@ ArmyMonitor = Class({
                     if isIdle then
                         self.units.facs.land.idle.t2 = self.units.facs.land.idle.t2 + 1
                     end
+                    if isHQ then
+                        self.units.facs.land.hq.t2 = self.units.facs.land.idle.t2 + 1
+                    end
                 elseif EntityCategoryContains(categories.TECH3,unit) then
                     self.units.facs.land.total.t3 = self.units.facs.land.total.t3 + 1
                     if isIdle then
                         self.units.facs.land.idle.t3 = self.units.facs.land.idle.t3 + 1
+                    end
+                    if isHQ then
+                        self.units.facs.land.hq.t3 = self.units.facs.land.hq.t3 + 1
                     end
                 end
             end
@@ -155,6 +171,49 @@ ArmyMonitor = Class({
                     end
                 end
             end
+
+            local isMobileLand = EntityCategoryContains(categories.MOBILE*categories.LAND - categories.ENGINEER,unit)
+            if isMobileLand then
+                local unitBP = unit:GetBlueprint()
+                self.units.land.mass.total = self.units.land.mass.total + unitBP.Economy.BuildCostMass
+                self.units.land.count.total = self.units.land.count.total + 1
+                if EntityCategoryContains(categories.TECH1,unit) then
+                    self.units.land.mass.t1 = self.units.land.mass.t1 + unitBP.Economy.BuildCostMass
+                    self.units.land.count.t1 = self.units.land.count.t1 + 1
+                elseif EntityCategoryContains(categories.TECH2,unit) then
+                    self.units.land.mass.t2 = self.units.land.mass.t2 + unitBP.Economy.BuildCostMass
+                    self.units.land.count.t2 = self.units.land.count.t2 + 1
+                elseif EntityCategoryContains(categories.TECH3,unit) then
+                    self.units.land.mass.t3 = self.units.land.mass.t3 + unitBP.Economy.BuildCostMass
+                    self.units.land.count.t3 = self.units.land.count.t3 + 1
+                elseif EntityCategoryContains(categories.EXPERIMENTAL,unit) then
+                    self.units.land.mass.t4 = self.units.land.mass.t4 + unitBP.Economy.BuildCostMass
+                    self.units.land.count.t4 = self.units.land.count.t4 + 1
+                end
+                if EntityCategoryContains(categories.SCOUT,unit) then
+                    self.units.land.count.scout = self.units.land.count.scout + 1
+                end
+            end
+
+            local isMobileAir = EntityCategoryContains(categories.MOBILE*categories.AIR - categories.ENGINEER,unit)
+            if isMobileAir then
+                local unitBP = unit:GetBlueprint()
+                self.units.air.mass.total = self.units.air.mass.total + unitBP.Economy.BuildCostMass
+                self.units.air.count.total = self.units.air.count.total + 1
+                if EntityCategoryContains(categories.TECH1,unit) then
+                    self.units.air.mass.t1 = self.units.air.mass.t1 + unitBP.Economy.BuildCostMass
+                    self.units.air.count.t1 = self.units.air.count.t1 + 1
+                elseif EntityCategoryContains(categories.TECH2,unit) then
+                    self.units.air.mass.t2 = self.units.air.mass.t2 + unitBP.Economy.BuildCostMass
+                    self.units.air.count.t2 = self.units.air.count.t2 + 1
+                elseif EntityCategoryContains(categories.TECH3,unit) then
+                    self.units.air.mass.t3 = self.units.air.mass.t3 + unitBP.Economy.BuildCostMass
+                    self.units.air.count.t3 = self.units.air.count.t3 + 1
+                elseif EntityCategoryContains(categories.EXPERIMENTAL,unit) then
+                    self.units.air.mass.t4 = self.units.air.mass.t4 + unitBP.Economy.BuildCostMass
+                    self.units.air.count.t4 = self.units.air.count.t4 + 1
+                end
+            end
         end
     end,
 
@@ -173,6 +232,19 @@ ArmyMonitor = Class({
             job.job.actualSpend = job.meta.spendBuf:Add(actualSpend)
         end
         for _, job in self.brain.base.factoryJobs do
+            if not job.meta.spendBuf then
+                -- Average over 5 seconds
+                job.meta.spendBuf = CreateStatBuffer(25)
+            end
+            local actualSpend = 0
+            for _, v in job.meta.assigned do
+                if v.unit and not v.unit.Dead then
+                    actualSpend = actualSpend + v.unit:GetConsumptionPerSecondMass()
+                end
+            end
+            job.job.actualSpend = job.meta.spendBuf:Add(actualSpend)
+        end
+        for _, job in self.brain.base.upgradeJobs do
             if not job.meta.spendBuf then
                 -- Average over 5 seconds
                 job.meta.spendBuf = CreateStatBuffer(25)

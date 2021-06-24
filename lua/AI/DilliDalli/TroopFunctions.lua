@@ -103,6 +103,8 @@ function EngineerBuildStructure(brain,engie,structure,location,radius)
         return true
     else
         WARN("Failed to find position to build: "..tostring(structure))
+        IssueMove({engie},{brain.intel.centre[1],GetSurfaceHeight(brain.intel.centre[1],brain.intel.centre[2]),brain.intel.centre[2]})
+        WaitTicks(10)
         return false
     end
 end
