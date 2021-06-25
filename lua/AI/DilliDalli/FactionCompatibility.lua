@@ -197,6 +197,12 @@ translate = {
         CYBRAN = "url0402",
         SERAPHIM = "xsl0401",
     },
+    AirScoutT1 = {
+        AEON = "uaa0101",
+        UEF = "uea0101",
+        CYBRAN = "ura0101",
+        SERAPHIM = "xsa0101",
+    },
     IntieT1 = {
         AEON = "uaa0102",
         UEF = "uea0102",

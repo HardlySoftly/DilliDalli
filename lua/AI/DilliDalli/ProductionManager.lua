@@ -1,3 +1,5 @@
+local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+
 LOW = 100
 NORMAL = 200
 HIGH = 300
@@ -40,7 +42,9 @@ ProductionManager = Class({
             --LOG("Production Management Thread")
             self:AllocateResources()
             for _, v in self.allocations do
+                local start = PROFILER:Now()
                 v.manager:ManageJobs(v.mass)
+                PROFILER:Add("Production"..v.manager.name,PROFILER:Now()-start)
             end
             WaitSeconds(1)
         end
@@ -75,9 +79,9 @@ ProductionManager = Class({
         local section3 = math.min(100,availableMass-section0-section1-section2)
         local section4 = availableMass-section0-section1-section2-section3
         -- Base allocation
-        self.allocations[1].mass = section0 + 0.2*section1 + 0.3*section2 + 0.38*section3 + 0.3*section4
+        self.allocations[1].mass = section0 + 0.2*section1 + 0.3*section2 + 0.38*section3 + 0.4*section4
         -- Land allocation
-        self.allocations[2].mass = section1*0.8 + section2*0.6 + section3*0.6 + section4*0.8
+        self.allocations[2].mass = section1*0.8 + section2*0.6 + section3*0.6 + section4*0.6
         -- Air allocation
         self.allocations[3].mass = section2*0.1 + section3*0.02
     end,
@@ -145,7 +149,7 @@ BaseProduction = Class({
     ManageJobs = function(self,mass)
         local massRemaining = mass - self.t1EngieJob.actualSpend
         local availableMex = self.brain.intel:GetNumAvailableMassPoints()
-        self.mexJob.duplicates = math.min(availableMex/2,math.max(self.brain.monitor.units.engies.t1-4,self.brain.monitor.units.engies.t1/1.5))+1
+        self.mexJob.duplicates = math.min(availableMex/1.5,math.max(self.brain.monitor.units.engies.t1-4,self.brain.monitor.units.engies.t1/1.5))
         local engiesRequired = math.max(4+math.min(10,availableMex/2),massRemaining/2)-self.brain.monitor.units.engies.t1
         -- Drop out early if we're still doing our build order
         if not self.brain.base.isBOComplete then
@@ -175,6 +179,12 @@ BaseProduction = Class({
             -- TODO: use a buffer to smooth spends on mexes (don't want blips to trigger mass upgrades)
             -- TODO: Distribute mass remaining between mex upgrade jobs
             self.mexT2Job.targetSpend = massRemaining - 5
+            if self.brain.monitor.units.mex.t2 > self.brain.monitor.units.mex.t1*2 then
+                self.mexT2Job.targetSpend = self.mexT2Job.targetSpend * 0.6
+                self.mexT3Job.targetSpend = massRemaining - self.mexT2Job.actualSpend - 10
+            else
+                self.mexT3Job.targetSpend = 0
+            end
         else
             self.mexT2Job.targetSpend = 0
         end
@@ -200,6 +210,7 @@ LandProduction = Class({
         self.name = "Land"
         self.brain = brain
         self.coord = coord
+        self.island = not self.brain.intel:CanPathToLand(self.brain.intel.allies[1],self.brain.intel.enemies[1])
         -- Base zone
         self.baseZone = self.brain.intel:FindZone(self.brain.intel.allies[1])
         -- T1 jobs
@@ -247,6 +258,9 @@ LandProduction = Class({
 
     -- Called every X ticks, does the job management.  Passed the mass assigned this funding round.
     ManageJobs = function(self,mass)
+        if self.island then
+            return self:ManageIslandJobs(mass)
+        end
         local massRemaining = mass
         -- Factory HQ upgrade decisions
         --    Based on:
@@ -293,7 +307,7 @@ LandProduction = Class({
         self.facJob.targetSpend = 0
         self.t2SupportJob.targetSpend = 0
         self.t2SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t1/4,math.max(self.brain.monitor.units.facs.land.total.t2/2,self.brain.monitor.units.facs.land.total.t3))
-        self.t2SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t2/4,self.brain.monitor.units.facs.land.total.t3/2)
+        self.t3SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t2/4,self.brain.monitor.units.facs.land.total.t3/2)
         self.t3SupportJob.targetSpend = 0
         if (t3Spend < t3Target/1.2) and (self.brain.monitor.units.facs.land.idle.t3 == 0) then
             if self.brain.monitor.units.facs.land.total.t2 - self.brain.monitor.units.facs.land.hq.t2 > 0 then
@@ -312,7 +326,7 @@ LandProduction = Class({
             end
         end
         massRemaining = math.max(0,massRemaining - self.t2SupportJob.actualSpend - self.t3SupportJob.actualSpend - self.facJob.actualSpend)
-        
+
         -- T1,T2,T3,Exp spending allocations + ratios (1)
         --    Based on:
         --        - Available factories
@@ -387,10 +401,12 @@ LandProduction = Class({
         -- Upgrade jobs to high/critical priority if there's an urgent need for them (4)
         -- T1 tanks early game
         -- AA if being bombed
-        if self.brain.monitor.units.land.count.total < 10 and self.brain.monitor.units.engies.t1 - 1 * 1.2 > self.brain.monitor.units.land.count.total then
+        if (self.brain.monitor.units.land.count.total < 30) and (((self.brain.monitor.units.engies.t1 - 1) * 2) > self.brain.monitor.units.land.count.total) then
             self.t1TankJob.priority = HIGH
+            self.t1ArtyJob.priority = HIGH
         else
             self.t1TankJob.priority = NORMAL
+            self.t1ArtyJob.priority = NORMAL
         end
         if self.baseZone.control.air.enemy < 0.5 then
             self.t3AAJob.priority = NORMAL
@@ -398,20 +414,140 @@ LandProduction = Class({
             self.t1AAJob.priority = NORMAL
         else
             self.t3AAJob.priority = CRITICAL
-            self.t3AAJob.targetSpend = math.max(4,self.t3AAJob.targetSpend)
+            self.t3AAJob.targetSpend = math.max(10,self.t3AAJob.targetSpend)
             self.t2AAJob.priority = CRITICAL
-            self.t2AAJob.targetSpend = math.max(4,self.t2AAJob.targetSpend)
+            self.t2AAJob.targetSpend = math.max(10,self.t2AAJob.targetSpend)
             self.t1AAJob.priority = CRITICAL
-            self.t1AAJob.targetSpend = math.max(4,self.t1AAJob.targetSpend)
+            self.t1AAJob.targetSpend = math.max(10,self.t1AAJob.targetSpend)
         end
-        
-        if massRemaining > 0 and self.brain.base.isBOComplete 
+
+        if massRemaining > 0 and self.brain.base.isBOComplete
                              and self.brain.monitor.units.facs.land.idle.t1+self.brain.monitor.units.facs.land.idle.t2+self.brain.monitor.units.facs.land.idle.t3 == 0 then
             self.facJob.targetSpend = self.facJob.targetSpend + massRemaining
         end
     end,
 
     ManageIslandJobs = function(self,mass)
+        local massRemaining = mass
+        -- Dodgy copy paste because I have no time while writing this :)
+        self.t2HQJob.targetSpend = 0
+        self.t2HQJob.count = 0
+        self.t3HQJob.targetSpend = 0
+        self.t3HQJob.count = 0
+        if self.brain.monitor.units.facs.land.hq.t3 > 0 then
+            -- We have a t3 HQ
+        elseif self.brain.monitor.units.facs.land.hq.t2 > 0 then
+            -- We have only a t2 HQ
+            if (self.brain.monitor.units.facs.land.total.t3 > 0) or (mass > 70) or (self.brain.monitor.units.land.mass.total > 7000) then
+                -- If we have higher tier support factories, an upgrade is high priority
+                self.t3HQJob.count = 1
+                self.t3HQJob.targetSpend = math.min(40,mass)
+            end
+        else
+            -- We have no HQs
+            -- Otherwise make a decision based on available mass/unit investment
+            if (self.brain.monitor.units.facs.land.total.t2 + self.brain.monitor.units.facs.land.total.t3 > 0) or (mass > 12) then
+                -- If we have higher tier support factories, an upgrade is high priority
+                self.t2HQJob.count = 1
+                self.t2HQJob.targetSpend = math.min(20,mass)
+            end
+        end
+        -- Update remaining mass
+        massRemaining = math.max(0,massRemaining - self.t2HQJob.actualSpend - self.t3HQJob.actualSpend)
+
+        -- Factory support upgrade decisions (2)
+        --    Based on:
+        --        - HQ availability
+        --        - Spend per factory (by tier)
+        --        - investment in units
+        local t1Spend = self.t1ScoutJob.actualSpend + self.t1TankJob.actualSpend + self.t1ArtyJob.actualSpend + self.t1AAJob.actualSpend
+        local t2Spend = self.t2TankJob.actualSpend + self.t2HoverJob.actualSpend + self.t2AAJob.actualSpend + self.t2MMLJob.actualSpend
+        local t2Target = self.t2TankJob.targetSpend + self.t2HoverJob.targetSpend + self.t2AAJob.targetSpend + self.t2MMLJob.targetSpend
+        local t3Spend = self.t3LightJob.actualSpend + self.t3HeavyJob.actualSpend + self.t3AAJob.actualSpend + self.t3ArtyJob.actualSpend
+        local t3Target = self.t3LightJob.targetSpend + self.t3HeavyJob.targetSpend + self.t3AAJob.targetSpend + self.t3ArtyJob.targetSpend
+        self.facJob.targetSpend = 0
+        self.t2SupportJob.targetSpend = 0
+        self.t2SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t1/4,math.max(self.brain.monitor.units.facs.land.total.t2/2,self.brain.monitor.units.facs.land.total.t3))
+        self.t3SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t2/4,self.brain.monitor.units.facs.land.total.t3/2)
+        self.t3SupportJob.targetSpend = 0
+        if (t3Spend < t3Target/1.2) and (self.brain.monitor.units.facs.land.idle.t3 == 0) then
+            if self.brain.monitor.units.facs.land.total.t2 - self.brain.monitor.units.facs.land.hq.t2 > 0 then
+                self.t3SupportJob.targetSpend = t3Target - t3Spend
+            elseif self.brain.monitor.units.facs.land.total.t1 > 0 then
+                self.t2SupportJob.targetSpend = t3Target - t3Spend
+            else
+                self.facJob.targetSpend = t3Target - t3Spend
+            end
+        end
+        if t2Spend < t2Target/1.2 and (self.brain.monitor.units.facs.land.idle.t2 == 0) then
+            if self.brain.monitor.units.facs.land.total.t1 > 0 then
+                self.t2SupportJob.targetSpend = self.t2SupportJob.targetSpend + t2Target - t2Spend
+            else
+                self.facJob.targetSpend = self.facJob.targetSpend + t2Target - t2Spend
+            end
+        end
+        massRemaining = math.max(0,massRemaining - self.t2SupportJob.actualSpend - self.t3SupportJob.actualSpend - self.facJob.actualSpend)
+
+        -- T1,T2,T3,Exp spending allocations + ratios (1)
+        --    Based on:
+        --        - Available factories
+        --        - Available mass
+        --        - Enemy intel (TODO)
+        --    Remember Hi Pri tank decisions (for early game)
+        if massRemaining > 100 and self.brain.monitor.units.engies.t3 > 0 then
+            -- Time for an experimental
+            self.expJob.targetSpend = (massRemaining-50)*0.8
+        else
+            self.expJob.targetSpend = 0
+        end
+        massRemaining = math.max(0,massRemaining - self.expJob.actualSpend)
+        if self.brain.monitor.units.facs.land.hq.t3 > 0 then
+            -- T3 spend
+            self.t3LightJob.targetSpend = 0
+            self.t3HeavyJob.targetSpend = 0
+            self.t3AAJob.targetSpend = 0
+            self.t3ArtyJob.targetSpend = 0
+        end
+        massRemaining = math.max(0,massRemaining - t3Spend)
+        if self.brain.monitor.units.facs.land.hq.t2+self.brain.monitor.units.facs.land.hq.t3 > 0 then
+            -- T2 spend
+            local actualMass = massRemaining*1.2
+            self.t2TankJob.targetSpend = 0
+            self.t2HoverJob.targetSpend = actualMass
+            self.t2AAJob.targetSpend = 0
+            self.t2MMLJob.targetSpend = 0
+        end
+        massRemaining = math.max(0,massRemaining - t2Spend)
+        if true then
+            -- T1 spend
+            local actualMass = massRemaining*1.2
+            self.t1ScoutJob.targetSpend = 0
+            self.t1TankJob.targetSpend = 0
+            self.t1ArtyJob.targetSpend = 0
+            self.t1AAJob.targetSpend = 0
+        end
+        massRemaining = math.max(0,massRemaining - t1Spend)
+
+        -- Upgrade jobs to high/critical priority if there's an urgent need for them (4)
+        -- T1 tanks early game
+        -- AA if being bombed
+        if self.baseZone.control.air.enemy < 0.5 then
+            self.t3AAJob.priority = NORMAL
+            self.t2AAJob.priority = NORMAL
+            self.t1AAJob.priority = NORMAL
+        else
+            self.t3AAJob.priority = CRITICAL
+            self.t3AAJob.targetSpend = math.max(10,self.t3AAJob.targetSpend)
+            self.t2AAJob.priority = CRITICAL
+            self.t2AAJob.targetSpend = math.max(10,self.t2AAJob.targetSpend)
+            self.t1AAJob.priority = CRITICAL
+            self.t1AAJob.targetSpend = math.max(10,self.t1AAJob.targetSpend)
+        end
+
+        if massRemaining > 0 and self.brain.base.isBOComplete
+                             and self.brain.monitor.units.facs.land.idle.t1+self.brain.monitor.units.facs.land.idle.t2+self.brain.monitor.units.facs.land.idle.t3 == 0 then
+            self.facJob.targetSpend = self.facJob.targetSpend + massRemaining
+        end
     end,
 })
 
@@ -429,21 +565,13 @@ AirProduction = Class({
         self.name = "Air"
         self.brain = brain
         self.coord = coord
-        self.intieJob = self.brain.base:CreateGenericJob()
-        self.intieJob.duplicates = JOB_INF
-        self.intieJob.count = JOB_INF
-        self.intieJob.targetSpend = 0
-        self.intieJob.work = "IntieT1"
-        self.intieJob.keep = true
-        self.intieJob.priority = NORMAL
+        -- T1 units
+        self.intieJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "IntieT1", keep = true, priority = NORMAL })
         self.brain.base:AddFactoryJob(self.intieJob)
-        self.facJob = self.brain.base:CreateGenericJob()
-        self.facJob.duplicates = JOB_INF
-        self.facJob.count = JOB_INF
-        self.facJob.targetSpend = 0
-        self.facJob.work = "AirFactoryT1"
-        self.facJob.keep = true
-        self.facJob.priority = NORMAL
+        self.scoutJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = JOB_INF, targetSpend = 0, work = "AirScoutT1", keep = true, priority = NORMAL })
+        self.brain.base:AddFactoryJob(self.scoutJob)
+        -- Factories
+        self.facJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AirFactoryT1", keep = true, priority = NORMAL })
         self.brain.base:AddMobileJob(self.facJob)
     end,
 
@@ -451,8 +579,13 @@ AirProduction = Class({
     ManageJobs = function(self,mass)
         self.intieJob.targetSpend = mass*1.2
         self.facJob.targetSpend = 0
+        if (self.brain.monitor.units.air.count.total > 0) and (self.brain.monitor.units.air.count.scout < 0.1 + math.log(1+(self.brain.monitor.units.air.count.total))*4) then
+            self.scoutJob.targetSpend = 5
+        else
+            self.scoutJob.targetSpend = 0
+        end
         if self.brain.monitor.units.facs.air.idle.t1 == 0 and self.brain.base.isBOComplete then
-            self.facJob.targetSpend = mass - self.intieJob.actualSpend
+            self.facJob.targetSpend = mass - self.intieJob.actualSpend - self.scoutJob.actualSpend
         end
     end,
 })

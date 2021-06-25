@@ -1,3 +1,5 @@
+local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+
 ArmyMonitor = Class({
     Initialise = function(self,brain)
         self.brain = brain
@@ -37,16 +39,22 @@ ArmyMonitor = Class({
                 if not units then
                     units = self.brain.aiBrain:GetListOfUnits(categories.ALLUNITS - categories.WALL,false,true)
                 end
+                local start = PROFILER:Now()
                 self:EconomyMonitoring(units)
+                PROFILER:Add("EconomyMonitoring",PROFILER:Now()-start)
             end
-            if math.mod(i,10) == 0 then
+            if math.mod(i,11) == 0 then
                 if not units then
                     units = self.brain.aiBrain:GetListOfUnits(categories.ALLUNITS - categories.WALL,false,true)
                 end
+                local start = PROFILER:Now()
                 self:UnitMonitoring(units)
+                PROFILER:Add("UnitMonitoring",PROFILER:Now()-start)
             end
             if math.mod(i,2) == 0 then
+                local start = PROFILER:Now()
                 self:JobMonitoring(units)
+                PROFILER:Add("JobMonitoring",PROFILER:Now()-start)
             end
             if math.mod(i,10) == 0 then
                 --self:LogEconomy()
@@ -88,7 +96,7 @@ ArmyMonitor = Class({
         if self.mass.storage < 1 and self.mass.income < self.mass.spend then
             self.mass.efficiency = self.mass.income / math.max(self.mass.spend,1)
         end
-        
+
     end,
 
     ResetUnitCounts = function(self)
@@ -104,7 +112,7 @@ ArmyMonitor = Class({
             },
             air = {
                 mass = { total = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0 },
-                count = { total = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0 },
+                count = { total = 0, t1 = 0, t2 = 0, t3 = 0, t4 = 0, scout = 0 },
             },
             mex = { t1=0, t2=0, t3=0 },
         }
@@ -113,7 +121,7 @@ ArmyMonitor = Class({
     UnitMonitoring = function(self,units)
         self:ResetUnitCounts()
         for _, unit in units do
-            local isEngie = EntityCategoryContains(categories.ENGINEER,unit)
+            local isEngie = EntityCategoryContains(categories.ENGINEER - categories.COMMAND,unit)
             if isEngie then
                 if EntityCategoryContains(categories.TECH1,unit) then
                     self.units.engies.t1 = self.units.engies.t1 + 1
@@ -123,7 +131,7 @@ ArmyMonitor = Class({
                     self.units.engies.t3 = self.units.engies.t3 + 1
                 end
             end
-            
+
             local isLandFac = EntityCategoryContains(categories.FACTORY*categories.LAND,unit)
             if isLandFac then
                 local isIdle = unit:IsIdleState()
@@ -151,6 +159,7 @@ ArmyMonitor = Class({
                     end
                 end
             end
+
             local isAirFac = EntityCategoryContains(categories.FACTORY*categories.AIR,unit)
             if isAirFac then
                 local isIdle = unit:IsIdleState()
@@ -212,6 +221,20 @@ ArmyMonitor = Class({
                 elseif EntityCategoryContains(categories.EXPERIMENTAL,unit) then
                     self.units.air.mass.t4 = self.units.air.mass.t4 + unitBP.Economy.BuildCostMass
                     self.units.air.count.t4 = self.units.air.count.t4 + 1
+                end
+                if EntityCategoryContains(categories.SCOUT,unit) then
+                    self.units.air.count.scout = self.units.air.count.scout + 1
+                end
+            end
+
+            local isMex = EntityCategoryContains(categories.MASSEXTRACTION,unit)
+            if isMex then
+                if EntityCategoryContains(categories.TECH1,unit) then
+                    self.units.mex.t1 = self.units.mex.t1 + 1
+                elseif EntityCategoryContains(categories.TECH2,unit) then
+                    self.units.mex.t2 = self.units.mex.t2 + 1
+                elseif EntityCategoryContains(categories.TECH3,unit) then
+                    self.units.mex.t3 = self.units.mex.t3 + 1
                 end
             end
         end

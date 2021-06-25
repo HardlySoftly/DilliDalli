@@ -1,6 +1,7 @@
 local TroopFunctions = import('/mods/DilliDalli/lua/AI/DilliDalli/TroopFunctions.lua')
 local Translation = import('/mods/DilliDalli/lua/AI/DilliDalli/FactionCompatibility.lua').translate
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
+local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
 
 BaseController = Class({
     Initialise = function(self,brain)
@@ -9,7 +10,6 @@ BaseController = Class({
         self.mobileJobs = {}
         self.factoryJobs = {}
         self.upgradeJobs = {}
-        self.idle = {}
         self.pendingStructures = { }
         self.isBOComplete = false
         self.tID = 1
@@ -347,7 +347,7 @@ BaseController = Class({
         -- Used for both Engineers and Factories
         -- Check if there is an available and pathable resource marker for restrictive thingies
         if (job.job.work == "MexT1" or job.job.work == "MexT2" or job.job.work == "MexT3") then
-            if not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Mass") then
+            if not self.brain.intel:EmptyMassMarkerExists(unit:GetPosition()) then
                 return false
             elseif (not EntityCategoryContains(categories.TECH1,unit)) and self.isBOComplete then
                 return false
@@ -426,12 +426,16 @@ BaseController = Class({
     AssignEngineers = function(self,allEngies)
         -- TODO: implement full stable matching algorithm
         -- TODO: implement job queues (take eta into account when considering location specific jobs)
+        local idle = 0
         for i=1,table.getn(allEngies) do
             local job = self:IdentifyJob(allEngies[i],self.mobileJobs)
             if job then
                 self:AssignJobMobile(allEngies[i],job)
+            else
+                idle = idle + 1
             end
         end
+        return idle
     end,
     AssignFactories = function(self,allFacs)
         -- TODO: implement full stable matching algorithm
@@ -478,8 +482,7 @@ BaseController = Class({
         local engies = {}
         for _, v in units do
             if (not v.CustomData or ((not v.CustomData.excludeAssignment) and (not v.CustomData.isAssigned))) and (not v:IsBeingBuilt()) and (not v.Dead) then
-                n = n+1
-                engies[n] = v
+                table.insert(engies,v)
             end
         end
         return engies
@@ -501,22 +504,28 @@ BaseController = Class({
         local i = 0
         while self.brain:IsAlive() do
             i = i+1
-            self:AssignEngineers(self:GetEngineers())
+            local start = PROFILER:Now()
+            local idle = self:AssignEngineers(self:GetEngineers())
+            PROFILER:Add("EngineerManagementThread",PROFILER:Now()-start)
             if math.mod(i,10) == 0 then
                 --self:LogJobs()
             end
-            WaitSeconds(1)
+            WaitTicks(math.min(math.max(10,idle),100))
         end
     end,
     FactoryManagementThread = function(self)
         while self.brain:IsAlive() do
+            local start = PROFILER:Now()
             self:AssignFactories(self:GetFactories())
+            PROFILER:Add("FactoryManagementThread",PROFILER:Now()-start)
             WaitSeconds(1)
         end
     end,
     UpgradeManagementThread = function(self)
         while self.brain:IsAlive() do
+            local start = PROFILER:Now()
             self:AssignUpgrades()
+            PROFILER:Add("UpgradeManagementThread",PROFILER:Now()-start)
             WaitSeconds(3)
         end
     end,
@@ -536,11 +545,36 @@ BaseController = Class({
         self.isBOComplete = true
     end,
 
+    JobMonitoring = function(self)
+        while self.brain:IsAlive() do
+            local numAssigned = 0
+            local numAssisting = 0
+            for _, v in self.mobileJobs do
+                numAssigned = numAssigned + table.getn(v.meta.assigned)
+                numAssisting = numAssisting + table.getn(v.meta.assisting)
+            end
+            for _, v in self.factoryJobs do
+                numAssigned = numAssigned + table.getn(v.meta.assigned)
+                numAssisting = numAssisting + table.getn(v.meta.assisting)
+            end
+            for _, v in self.upgradeJobs do
+                numAssigned = numAssigned + table.getn(v.meta.assigned)
+                numAssisting = numAssisting + table.getn(v.meta.assisting)
+            end
+            LOG("Assigned builders: "..tostring(numAssigned))
+            LOG("Assisting builders: "..tostring(numAssisting))
+            LOG("Total Jobs: "..tostring(table.getn(self.mobileJobs)+table.getn(self.factoryJobs)+table.getn(self.upgradeJobs)))
+            LOG("Pending Structures: "..tostring(table.getn(self.pendingStructures)))
+            WaitTicks(200)
+        end
+    end,
+
     Run = function(self)
         self:ForkThread(self.EngineerManagementThread)
         self:ForkThread(self.FactoryManagementThread)
         self:ForkThread(self.UpgradeManagementThread)
         self:ForkThread(self.MonitorBOCompletion)
+        --self:ForkThread(self.JobMonitoring)
     end,
 
     LogAssisters = function(self,id)
@@ -598,7 +632,8 @@ BaseController = Class({
     end,
 
     BaseIssueBuildMobile = function(self, units, pos, bp, id)
-        table.insert(self.pendingStructures, { pos=table.copy(pos), bp=bp, units=table.copy(units), id=id })
+        table.insert(self.pendingStructures, { pos=table.copy(pos), bp=bp, id=id })
+        -- TODO: check this later
         IssueBuildMobile(units,pos,bp.BlueprintId,{})
     end,
     BaseCompleteBuildMobile = function(self, id)

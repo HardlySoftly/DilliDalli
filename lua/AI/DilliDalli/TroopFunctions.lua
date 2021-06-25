@@ -1,4 +1,5 @@
 local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
+local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
 
 function WaitingOnCommands(cmds)
     for _, cmd in cmds do
@@ -12,6 +13,8 @@ end
 function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, radius, locationBias)
     -- Fuck having this as a dependency: aiBrain:FindPlaceToBuild
     -- It is so miserably complex to call that I'm going to roll my own version right here. Fight me.
+
+    local startTime = PROFILER:Now()
 
     -- Step 1: Identify starting location
     local targetLocation
@@ -47,6 +50,7 @@ function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, r
         if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) and intelManager:CanPathToSurface(location,targetLocation)
                                                                              and baseManager:LocationIsClear(targetLocation,blueprint) then
             -- TODO add adjacency check support
+            PROFILER:Add("FindLocation",PROFILER:Now()-startTime)
             return targetLocation
         end
         -- Update targetLocation
@@ -77,6 +81,7 @@ function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, r
             targetLocation = {x,GetSurfaceHeight(x,z),z}
         end
     end
+    PROFILER:Add("FindLocation",PROFILER:Now()-startTime)
     return result
 end
 
@@ -139,6 +144,7 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
     else
         -- TODO: debug why this sometimes happens
         WARN("Failed to find position for markerType: "..tostring(markerType))
+        WaitTicks(2)
         return false
     end
 end

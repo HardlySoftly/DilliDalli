@@ -1,23 +1,18 @@
+local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+
 UnitController = Class({
     Initialise = function(self,brain)
         self.brain = brain
         self.land = LandController()
+        self.air = AirController()
 
         self.land:Init(self.brain)
+        self.air:Init(self.brain)
     end,
 
     Run = function(self)
         self.land:Run()
-    end,
-
-    ForkThread = function(self, fn, ...)
-        if fn then
-            local thread = ForkThread(fn, self, unpack(arg))
-            self.brain.Trash:Add(thread)
-            return thread
-        else
-            return nil
-        end
+        self.air:Run()
     end,
 })
 
@@ -30,13 +25,13 @@ end
 LandController = Class({
     Init = function(self,brain)
         self.brain = brain
-        self.detectRadius = 60
         self.groups = {}
         self.groupID = 1
     end,
 
     Run = function(self)
         self:ForkThread(self.LandControlThread)
+        --self:ForkThread(self.GroupLoggingThread)
     end,
 
     CreateGroup = function(self,unit)
@@ -61,7 +56,10 @@ LandController = Class({
             end
         end
         for _, v in self.groups do
-            local priority = v.size/(10+v.zoneThreat)
+            if v.size == 0 then
+                continue
+            end
+            local priority = (5+v.size)/(1+v.zoneThreat)
             if (not best) or priority < bestPriority then
                 best = v
                 bestPriority = priority
@@ -121,12 +119,30 @@ LandController = Class({
         end
     end,
 
+    GroupLoggingThread = function(self)
+        while self.brain:IsAlive() do
+            --LOG("=========================")
+            --for _, v in self.groups do
+            --    LOG("Group: "..tostring(v.id)..", size: "..tostring(v.size)..", reinforcing: "..tostring(table.getn(v.reinforcing))..", units: "..tostring(table.getn(v.units)))
+            --end
+            LOG("Num groups: "..tostring(table.getn(self.groups)))
+            local t = 0
+            for _, v in self.groups do
+                t = t + table.getn(v.units)
+                t = t + table.getn(v.reinforcing)
+            end
+            LOG("Group state size: "..tostring(t))
+            WaitTicks(200)
+        end
+    end,
+
     LandControlThread = function(self)
         while self.brain:IsAlive() do
+            local start = PROFILER:Now()
             self:CheckGroups()
             local units = self.brain.aiBrain:GetListOfUnits(categories.LAND * categories.MOBILE - categories.ENGINEER,false,true)
             local numUnits = table.getn(units)
-            local targetNumberOfGroups = 1 + math.ceil((math.sqrt(numUnits)/2) - 0.1)
+            local targetNumberOfGroups = math.sqrt(numUnits)*2 + 1
             local numGroups = table.getn(self.groups)
             for _, unit in units do
                 if not unit.CustomData then
@@ -134,7 +150,9 @@ LandController = Class({
                 end
                 if (not unit.CustomData.landAssigned) and (not unit:IsBeingBuilt()) then
                     unit.CustomData.landAssigned = true
-                    if numGroups < targetNumberOfGroups then
+                    if EntityCategoryContains(categories.EXPERIMENTAL,unit) then
+                        self:ForkThread(self.ExpThread,unit)
+                    elseif numGroups < targetNumberOfGroups then
                         -- Create group
                         self:CreateGroup(unit)
                         numGroups = numGroups + 1
@@ -155,7 +173,8 @@ LandController = Class({
                     end
                 end
             end
-            WaitTicks(20)
+            PROFILER:Add("LandControlThread",PROFILER:Now()-start)
+            WaitTicks(21)
         end
     end,
 
@@ -196,8 +215,12 @@ LandController = Class({
                         bestMetric = metric
                     end
                 end
-                -- Bias target towards enemy base
-                target = self:BiasLocation(best,self.brain.intel.enemies[1],10)
+                if VDist3(best,self.brain.intel.enemies[1]) < 80 then
+                    target = self:BiasLocation(self.brain.intel.enemies[1],self.brain.intel.allies[1],60)
+                else
+                    -- Bias target towards enemy base
+                    target = self:BiasLocation(best,self.brain.intel.enemies[1],10)
+                end
             end
             if VDist3(acu:GetPosition(),target) > 20 then
                 -- If too far away move nearer
@@ -208,6 +231,53 @@ LandController = Class({
                 local newPos = {target[1] + Random(-15,15),target[2],target[3] + Random(-15,15)}
                 IssueMove({acu},newPos)
             end
+            WaitTicks(20)
+        end
+    end,
+
+    ExpThread = function(self,unit)
+        local target = table.copy(self.brain.intel.enemies[1])
+        local hurt = false
+        local lastPos
+        local stationary = false
+        while unit and (not unit.Dead) do
+            local start = PROFILER:Now()
+            local myPos = unit:GetPosition()
+            if hurt then
+                if unit:GetHealth()/unit:GetBlueprint().Defense.MaxHealth > 0.9 then
+                    hurt = false
+                    target = table.copy(self.brain.intel.enemies[1])
+                    IssueClearCommands({unit})
+                    IssueAggressiveMove({unit},target)
+                elseif unit:IsIdleState() then
+                    local newPos = {target[1] + Random(-20,20),target[2],target[3] + Random(-20,20)}
+                    IssueMove({unit},newPos)
+                end
+            else
+                if unit:GetHealth()/unit:GetBlueprint().Defense.MaxHealth < 0.4 then
+                    -- Check if we are hurt
+                    hurt = true
+                    target = table.copy(self.brain.intel.allies[1])
+                    IssueClearCommands({unit})
+                    IssueMove({unit},target)
+                elseif VDist3(myPos, target) < 40 then
+                    -- If near the target, move randomly
+                    if unit:IsIdleState() then
+                        local newPos = {target[1] + Random(-20,20),target[2],target[3] + Random(-20,20)}
+                        IssueMove({unit},newPos)
+                    end
+                elseif lastPos and VDist3(lastPos,myPos) < 1 then
+                    stationary = true
+                    IssueClearCommands({unit})
+                    IssueMove({unit},target)
+                elseif stationary then
+                    stationary = false
+                    IssueClearCommands({unit})
+                    IssueAggressiveMove({unit},target)
+                end
+            end
+            lastPos = myPos
+            PROFILER:Add("ExpThread",PROFILER:Now()-start)
             WaitTicks(20)
         end
     end,
@@ -247,17 +317,23 @@ LandGroup = Class({
 
         self.size = 0
     end,
-    
+
     AssaultControlThread = function(self)
         local danger = 0
         local threatened = false
+        local targetCounter = 0
+        WaitTicks(Random(0,9))
         while self:Resize() > 0 do
+            local start = PROFILER:Now()
             local myPos = self:Reinforce()
-            if (not self.targetZone) or (VDist3(myPos,self.targetZone.pos) < 20 and self.targetZone.control.land.enemy <= 0) then
+            if (targetCounter == 0) or (not self.targetZone) or (VDist3(myPos,self.targetZone.pos) < 20 and self.targetZone.control.land.enemy <= 0) then
                 self.targetZone = nil
                 self.targetZone = self.controller:FindNewTarget(myPos,self.id,'surf')
+                targetCounter = 20
                 IssueClearCommands(self.units)
                 IssueMove(self.units,self.targetZone.pos)
+            else
+                targetCounter = targetCounter - 1
             end
             -- Go steady if there's danger
             if self.localThreat <= self.localSupport*1.0 then
@@ -290,17 +366,29 @@ LandGroup = Class({
                     IssueMove(self.units,self.nextMove)
                 end
             end
+            PROFILER:Add("AssaultControlThread",PROFILER:Now()-start)
             WaitTicks(10)
         end
     end,
 
     DangerAt = function(self,pos,radius)
-        local units = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,pos,radius,'Enemy')
-        return self.brain.intel:GetLandThreatAndPos(units)
+        local enemyUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,pos,radius,'Enemy')
+        local neutralUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,pos,radius,'Enemy')
+        local dangerEnemy = self.brain.intel:GetLandThreatAndPos(enemyUnits)
+        local dangerNeutral = self.brain.intel:GetLandThreatAndPos(neutralUnits)
+        if dangerEnemy.pos and dangerNeutral.pos then
+            return { threat = dangerEnemy.threat + dangerNeutral.threat, pos = VMult(VAdd(dangerEnemy.pos,dangerNeutral.pos),0.5)}
+        elseif dangerNeutral.pos then
+            return dangerNeutral
+        else
+            return dangerEnemy
+        end
     end,
 
     IntelThread = function(self)
+        WaitTicks(Random(0,19))
         while self.size > 0 do
+            local start = PROFILER:Now()
             if self.targetZone then
                 local myPos = self:Position()
                 local nextPos = self.controller:BiasLocation(myPos,self.targetZone.pos,math.min(40,VDist3(myPos,self.targetZone.pos)))
@@ -317,7 +405,8 @@ LandGroup = Class({
                     self.zoneThreatAge = self.zoneThreatAge + 1
                 end
             end
-            WaitTicks(10)
+            PROFILER:Add("LandIntelThread",PROFILER:Now()-start)
+            WaitTicks(20)
         end
     end,
 
@@ -441,4 +530,197 @@ LandGroup = Class({
     end,
 })
 
+AirController = Class({
+    Init = function(self,brain)
+        self.brain = brain
+        self.groups = {}
+        self.groupID = 1
+    end,
 
+    Run = function(self)
+        self:ForkThread(self.AirControlThread)
+    end,
+
+    CreateGroup = function(self,unit)
+        local ag = IntieGroup()
+        ag:Init(self.brain,self,self.groupID)
+        self.groupID = self.groupID + 1
+        self.groups = {}
+        table.insert(self.groups,ag)
+        ag:Add(unit)
+        ag:Run()
+    end,
+
+    CheckGroups = function(self)
+        -- Delete dead groups
+        local i = 1
+        while i <= table.getn(self.groups) do
+            if self.groups[i]:Size() == 0 then
+                table.remove(self.groups,i)
+            else
+                i = i+1
+            end
+        end
+    end,
+
+    FindGroup = function(self,unit)
+        -- Add this unit to a relevant group
+        local best
+        local bestPriority = 0
+        for _, v in self.groups do
+            local priority = v.size
+            if (not best) or priority < bestPriority then
+                best = v
+                bestPriority = priority
+            end
+        end
+        if (not best) then
+            -- Huh??
+            WARN("UnitController: Failed to find group...  creating a new one.")
+            self:CreateGroup(unit)
+        else
+            best:Add(unit)
+        end
+    end,
+
+    ScoutingThread = function(self,scout)
+        local targetZone
+        while scout and (not scout.Dead) do
+            local myPos = scout:GetPosition()
+            if (not targetZone) or (VDist2(myPos[1],myPos[3],targetZone.pos[1],targetZone.pos[3]) < 30) or scout:IsIdleState() then
+                targetZone = nil
+                local bestScore = 0
+                for _, v in self.brain.intel.zones do
+                    local dist = VDist2(myPos[1],myPos[3],v.pos[1],v.pos[3])
+                    local r = Random(100,1000)
+                    if (r > bestScore) and (dist >= 50) then
+                        targetZone = v
+                        bestScore = r
+                    elseif (not targetZone) and (dist < 50) then
+                        targetZone = v
+                    end
+                end
+                -- Select new target zone and move there
+                IssueClearCommands({scout})
+                IssueMove({scout},targetZone.pos)
+            end
+            WaitTicks(10)
+        end
+    end,
+
+    AirControlThread = function(self)
+        while self.brain:IsAlive() do
+            self:CheckGroups()
+            local units = self.brain.aiBrain:GetListOfUnits(categories.AIR * categories.MOBILE - categories.ENGINEER,false,true)
+            local numUnits = table.getn(units)
+            local targetNumberOfGroups = 1 + math.floor((math.sqrt(numUnits/10))+0.1)
+            local numGroups = table.getn(self.groups)
+            for _, unit in units do
+                if not unit.CustomData then
+                    unit.CustomData = {}
+                end
+                if (not unit.CustomData.airAssigned) and (not unit:IsBeingBuilt()) then
+                    unit.CustomData.airAssigned = true
+                    if EntityCategoryContains(categories.SCOUT,unit) then
+                        self:ForkThread(self.ScoutingThread,unit)
+                    end
+                    if numGroups < targetNumberOfGroups then
+                        -- Create group
+                        self:CreateGroup(unit)
+                        numGroups = numGroups + 1
+                    else
+                        -- Add to group
+                        self:FindGroup(unit)
+                    end
+                end
+            end
+            WaitTicks(20)
+        end
+    end,
+
+    ForkThread = function(self, fn, ...)
+        if fn then
+            local thread = ForkThread(fn, self, unpack(arg))
+            self.brain.Trash:Add(thread)
+            return thread
+        else
+            return nil
+        end
+    end,
+})
+
+IntieGroup = Class({
+    Init = function(self,brain,controller,id)
+        self.brain = brain
+        self.controller = controller
+        self.id = id
+
+        self.units = {}
+        self.size = 0
+    end,
+
+    InterceptionThread = function(self)
+        local targetZone = nil
+        local waiting = false
+        while self:Resize() > 0 do
+            if (not targetZone) or (self.units[1]:IsIdleState() and (not waiting)) or (targetZone.control.land.ally < targetZone.control.land.enemy) then
+                targetZone = nil
+                local bestThreat = 0
+                local bestSafety = 0
+                for _, v in self.brain.intel.zones do
+                    local r = Random(1,100)
+                    if (v.control.land.ally > v.control.land.enemy) and v.control.air.enemy > bestThreat then
+                        targetZone = v
+                        bestThreat = v.control.air.enemy
+                        waiting = false
+                    elseif (bestThreat == 0) and (r > bestSafety) then
+                        bestSafety = r
+                        targetZone = v
+                        waiting = true
+                    end
+                end
+                if targetZone then
+                    IssueClearCommands(self.units)
+                    IssueAggressiveMove(self.units,targetZone.pos)
+                end
+            end
+            WaitTicks(20)
+        end
+    end,
+
+    Add = function(self,unit)
+        table.insert(self.units,unit)
+        self.size = self.size + 1
+    end,
+
+    Run = function(self)
+        self:ForkThread(self.InterceptionThread)
+    end,
+
+    Resize = function(self)
+        local i = 1
+        while i <= table.getn(self.units) do
+            if self.units[i] and (not self.units[i].Dead) then
+                i = i+1
+            else
+                table.remove(self.units,i)
+            end
+        end
+        self.size = table.getn(self.units)
+        return self.size
+    end,
+
+    Size = function(self)
+        return self.size
+    end,
+
+    ForkThread = function(self, fn, ...)
+        if fn then
+            local thread = ForkThread(fn, self, unpack(arg))
+            self.brain.Trash:Add(thread)
+            return thread
+        else
+            return nil
+        end
+    end,
+})

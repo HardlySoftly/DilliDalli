@@ -15,6 +15,8 @@ IntelManager = Class({
         self:FindSpawns()
         self:GenerateMapZones()
         self:GenerateMapEdges()
+
+        self.mme = {}
     end,
 
     LoadMapMarkers = function(self)
@@ -65,6 +67,20 @@ IntelManager = Class({
         return BOs.LandLand
     end,
 
+    EmptyMassMarkerExists = function(self,pos)
+        local indices = self:GetIndices(pos[1],pos[3])
+        local component = tostring(self.markers[indices[1]][indices[2]].surf.component)
+        if self.mme[component] then
+            return self.mme[component].exists
+        else
+            if self:FindNearestEmptyMarker(pos,"Mass") then
+                self.mme[component] = { exists = true }
+            else
+                self.mme[component] = { exists = false }
+            end
+        end
+    end,
+
     FindNearestEmptyMarker = function(self,pos,t)
         local markers = ScenarioUtils.GetMarkers()
         local best = 1000000
@@ -86,15 +102,16 @@ IntelManager = Class({
     end,
 
     CanBuildOnMarker = function(self,pos)
-        local units = GetUnitsInRect(Rect(pos[1],pos[3],pos[1],pos[3]))
         local alliedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Ally')
+        if alliedUnits and (table.getn(alliedUnits) > 0) then
+            return false
+        end
         local neutralUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Neutral')
-        local myIndex = self.brain.aiBrain:GetArmyIndex()
-        if (alliedUnits and table.getn(alliedUnits) > 0) or (neutralUnits and table.getn(neutralUnits) > 0) then
+        if neutralUnits and (table.getn(neutralUnits) > 0) then
             return false
         end
         local enemyUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Enemy')
-        if table.getn(enemyUnits) > 0 then
+        if enemyUnits and (table.getn(enemyUnits) > 0) then
             return false
         end
         return true
@@ -113,6 +130,9 @@ IntelManager = Class({
     end,
 
     GetNumAvailableMassPoints = function(self)
+        if self.massNumCached then
+            return self.massNumCached
+        end
         local num = 0
         local markers = ScenarioUtils.GetMarkers()
         for _, v in markers do
@@ -120,6 +140,8 @@ IntelManager = Class({
                 num = num + 1
             end
         end
+        self.massNumCached = true
+        self.massNum = num
         return num
     end,
 
@@ -127,6 +149,12 @@ IntelManager = Class({
         local indices0 = self:GetIndices(pos0[1],pos0[3])
         local indices1 = self:GetIndices(pos1[1],pos1[3])
         return self.markers[indices0[1]][indices0[2]].surf.component == self.markers[indices1[1]][indices1[2]].surf.component
+    end,
+
+    CanPathToLand = function(self,pos0,pos1)
+        local indices0 = self:GetIndices(pos0[1],pos0[3])
+        local indices1 = self:GetIndices(pos1[1],pos1[3])
+        return self.markers[indices0[1]][indices0[2]].land.component == self.markers[indices1[1]][indices1[2]].land.component
     end,
 
     CreateZone = function(self,pos,weight)
@@ -277,6 +305,8 @@ IntelManager = Class({
                 threat = 3
             elseif EntityCategoryContains(categories.TECH3,unit) then
                 threat = 6
+            elseif EntityCategoryContains(categories.EXPERIMENTAL,unit) then
+                threat = 80
             end
         end
         self.threatTable.land[unit.UnitId] = threat
@@ -296,8 +326,8 @@ IntelManager = Class({
     MonitorMapZones = function(self)
         local myIndex = self.brain.aiBrain:GetArmyIndex()
         for _, v in self.zones do
-            local enemies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,v.pos,self.zoneRadius,'Enemy')
-            local allies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,v.pos,self.zoneRadius,'Ally')
+            local enemies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,v.pos,self.zoneRadius,'Enemy')
+            local allies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,v.pos,self.zoneRadius,'Ally')
             v.control.land.enemy = self:GetLandThreat(enemies)
             v.control.land.ally = self:GetLandThreat(allies)
             v.control.air.enemy = self:GetAirThreat(enemies)
@@ -328,7 +358,16 @@ IntelManager = Class({
 
     Run = function(self)
         self:ForkThread(self.MapMonitoringThread)
+        self:ForkThread(self.CacheClearThread)
         --self:ForkThread(self.MapDrawingThread)
+    end,
+
+    CacheClearThread = function(self)
+        while self.brain:IsAlive() do
+            self.massNumCached = false
+            self.mme = {}
+            WaitTicks(1)
+        end
     end,
 
     GetNeighbours = function(self,i,j)
