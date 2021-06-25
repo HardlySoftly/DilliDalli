@@ -157,6 +157,7 @@ BaseProduction = Class({
             return nil
         end
         local energyModifier = 2 - 0.9*self.brain.aiBrain:GetEconomyStoredRatio('ENERGY')
+        local amEmpty = self.brain.aiBrain:GetEconomyStoredRatio('ENERGY') < 0.05
         -- Do I need more pgens?
         local pgenSpend = math.max(math.min(massRemaining,(self.brain.monitor.energy.spend*energyModifier - self.brain.monitor.energy.income)/4),-1)
         if self.brain.monitor.units.engies.t3 > 0 then
@@ -171,6 +172,15 @@ BaseProduction = Class({
             self.t1PgenJob.targetSpend = pgenSpend
             self.t2PgenJob.targetSpend = 0
             self.t3PgenJob.targetSpend = 0
+        end
+        if amEmpty then
+            self.t1PgenJob.priority = CRITICAL
+            self.t2PgenJob.priority = CRITICAL
+            self.t3PgenJob.priority = CRITICAL
+        else
+            self.t1PgenJob.priority = NORMAL
+            self.t2PgenJob.priority = NORMAL
+            self.t3PgenJob.priority = NORMAL
         end
         massRemaining = massRemaining - pgenSpend
         -- Do I need some mex upgrades?

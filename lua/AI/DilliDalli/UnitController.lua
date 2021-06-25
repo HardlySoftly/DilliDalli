@@ -192,7 +192,7 @@ LandController = Class({
         local target
         local scared = false
         while self.brain:IsAlive() and acu and (not acu.Dead) do
-            if acu:GetHealth()/acu:GetBlueprint().Defense.MaxHealth < 0.5 and (not scared) then
+            if acu:GetHealth() < 6000 and (not scared) then
                 target = self:BiasLocation(self.brain.intel.allies[1],self.brain.intel.enemies[1],10)
                 scared = true
             elseif scared and acu:GetHealth()/acu:GetBlueprint().Defense.MaxHealth > 0.9 then
