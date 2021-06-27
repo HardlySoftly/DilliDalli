@@ -31,31 +31,35 @@ ArmyMonitor = Class({
 
     MonitoringThread = function(self)
         local i = 0
+        local start = 0
         while self.brain:IsAlive() do
             -- This will fail after roughly 2^53 ticks.  I find this fact to be amusing, and will not be fixing it.
             i = i+1
             local units
+            start = PROFILER:Now()
             if math.mod(i,2) == 0 then
                 if not units then
                     units = self.brain.aiBrain:GetListOfUnits(categories.ALLUNITS - categories.WALL,false,true)
                 end
-                local start = PROFILER:Now()
                 self:EconomyMonitoring(units)
-                PROFILER:Add("EconomyMonitoring",PROFILER:Now()-start)
             end
+            PROFILER:Add("EconomyMonitoring",PROFILER:Now()-start)
+            start = PROFILER:Now()
             if math.mod(i,11) == 0 then
                 if not units then
                     units = self.brain.aiBrain:GetListOfUnits(categories.ALLUNITS - categories.WALL,false,true)
                 end
-                local start = PROFILER:Now()
                 self:UnitMonitoring(units)
-                PROFILER:Add("UnitMonitoring",PROFILER:Now()-start)
             end
+            PROFILER:Add("UnitMonitoring",PROFILER:Now()-start)
+            start = PROFILER:Now()
             if math.mod(i,2) == 0 then
-                local start = PROFILER:Now()
+                if not units then
+                    units = self.brain.aiBrain:GetListOfUnits(categories.ALLUNITS - categories.WALL,false,true)
+                end
                 self:JobMonitoring(units)
-                PROFILER:Add("JobMonitoring",PROFILER:Now()-start)
             end
+            PROFILER:Add("JobMonitoring",PROFILER:Now()-start)
             if math.mod(i,10) == 0 then
                 --self:LogEconomy()
             end

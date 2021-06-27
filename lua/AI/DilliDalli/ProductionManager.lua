@@ -38,16 +38,20 @@ ProductionManager = Class({
     end,
 
     ManageProductionThread = function(self)
+        local start = PROFILER:Now()
         while self.brain:IsAlive() do
             --LOG("Production Management Thread")
             self:AllocateResources()
             for _, v in self.allocations do
-                local start = PROFILER:Now()
+                --local start = PROFILER:Now()
                 v.manager:ManageJobs(v.mass)
-                PROFILER:Add("Production"..v.manager.name,PROFILER:Now()-start)
+                --PROFILER:Add("Production"..v.manager.name,PROFILER:Now()-start)
             end
+            PROFILER:Add("ManageProductionThread",PROFILER:Now()-start)
             WaitSeconds(1)
+            start = PROFILER:Now()
         end
+        PROFILER:Add("ManageProductionThread",PROFILER:Now()-start)
     end,
 
     ReportSpendsThread = function(self)

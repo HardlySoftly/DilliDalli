@@ -1,5 +1,6 @@
 local BOs = import('/mods/DilliDalli/lua/AI/DilliDalli/BuildOrders.lua')
 local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
+local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
 
 R2 = math.sqrt(2)
 
@@ -82,6 +83,7 @@ IntelManager = Class({
     end,
 
     FindNearestEmptyMarker = function(self,pos,t)
+        local start = PROFILER:Now()
         local markers = ScenarioUtils.GetMarkers()
         local best = 1000000
         local bestMarker = nil
@@ -98,6 +100,7 @@ IntelManager = Class({
                 end
             end
         end
+        PROFILER:Add("FindNearestEmptyMarker",PROFILER:Now()-start)
         return bestMarker
     end,
 
@@ -336,13 +339,18 @@ IntelManager = Class({
     end,
 
     MapMonitoringThread = function(self)
+        local start = PROFILER:Now()
         while self.brain:IsAlive() do
             self:MonitorMapZones()
+            PROFILER:Add("MapMonitoringThread",PROFILER:Now()-start)
             WaitTicks(10)
+            start = PROFILER:Now()
         end
+        PROFILER:Add("MapMonitoringThread",PROFILER:Now()-start)
     end,
 
     MapDrawingThread = function(self)
+        local start = PROFILER:Now()
         while self.brain:IsAlive() do
             for _, v in self.zones do
                 DrawCircle(v.pos,5*v.weight,'aaffffff')
@@ -352,8 +360,11 @@ IntelManager = Class({
                     DrawLine(v.pos,v2.pos,'aa000000')
                 end
             end
+            PROFILER:Add("MapDrawingThread",PROFILER:Now()-start)
             WaitTicks(2)
+            start = PROFILER:Now()
         end
+        PROFILER:Add("MapDrawingThread",PROFILER:Now()-start)
     end,
 
     Run = function(self)
@@ -364,6 +375,7 @@ IntelManager = Class({
 
     CacheClearThread = function(self)
         while self.brain:IsAlive() do
+            -- I'm not going to profile this.  Seriously.
             self.massNumCached = false
             self.mme = {}
             WaitTicks(1)

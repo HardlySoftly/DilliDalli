@@ -5,6 +5,8 @@ Profiler = Class({
         self.Trash = TrashBag()
         self.last = 0
         self.times = {}
+        self.period = 50 -- How many ticks to wait before logging again
+        self.adjust = 10/self.period
     end,
 
     Now = function(self)
@@ -25,19 +27,19 @@ Profiler = Class({
             pq:Queue({k = k, priority = -v})
         end
         local s = ""
-        if not self.last then
-            s = "Top Costs: "
-        else
-            s = "Top Costs("..tostring(math.round(20*(GetSystemTimeSecondsOnlyForProfileUse()-self.last))).."): "
+        if self.last then
+            local timePerGameSecond = self.adjust*(GetSystemTimeSecondsOnlyForProfileUse()-self.last)
+            s = "Time per game second:"..string.format("%.2f",timePerGameSecond).."s, Top Costs: "
+            local i = 0
+            while (i < 5) and (pq:Size() > 0) do
+                i = i+1
+                local item = pq:Dequeue()
+                -- Logs Percet Total Time
+                
+                s = s..item.k.."-"..string.format("%.2f",100*self.adjust*(-item.priority)/timePerGameSecond).."%, "
+            end
+            LOG(s)
         end
-        local i = 0
-        while (i < 5) and (pq:Size() > 0) do
-            i = i+1
-            local item = pq:Dequeue()
-            -- Logs 1/100000 of a second per tick
-            s = s..item.k.."-"..tostring(math.round(-item.priority*20000))..", "
-        end
-        LOG(s)
         self.last = GetSystemTimeSecondsOnlyForProfileUse()
         self.times = {}
     end,
@@ -45,7 +47,7 @@ Profiler = Class({
     MonitorThread = function(self)
         while true do
             self:LogOut()
-            WaitTicks(50)
+            WaitTicks(self.period)
         end
     end,
 

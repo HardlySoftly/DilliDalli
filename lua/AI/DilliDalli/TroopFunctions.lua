@@ -92,19 +92,26 @@ function EngineerBuildStructure(brain,engie,structure,location,radius)
         location = engie:GetPosition()
         radius = 40
     end
+    -- This gets profiled separately
     local pos = FindLocation(aiBrain,brain.base,brain.intel,bp,location,radius,"centre")
     if pos then
+        local start = PROFILER:Now()
         -- Clear any existing commands
         IssueClearCommands({engie})
         -- Now issue build command
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
         local constructionID = Random(0,1073741823)
         brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
+        PROFILER:Add("EngineerBuildStructure",PROFILER:Now()-start)
         WaitTicks(2)
+        start = PROFILER:Now()
         while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
+            PROFILER:Add("EngineerBuildStructure",PROFILER:Now()-start)
             WaitTicks(2)
+            start = PROFILER:Now()
         end
         brain.base:BaseCompleteBuildMobile(constructionID)
+        PROFILER:Add("EngineerBuildStructure",PROFILER:Now()-start)
         return true
     else
         WARN("Failed to find position to build: "..tostring(structure))
@@ -117,18 +124,25 @@ end
 function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
     local aiBrain = engie:GetAIBrain()
     local bp = aiBrain:GetUnitBlueprint(structure)
+    -- This thing gets profiled separately
     local pos = brain.intel:FindNearestEmptyMarker(engie:GetPosition(),markerType).position
     if pos then
+        local start = PROFILER:Now()
         IssueClearCommands({engie})
         -- I need a unique token.  This is unique with high probability (0,2^30 - 1).
         local constructionID = Random(0,1073741823)
         brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
+        PROFILER:Add("EngineerBuildMarkedStructure",PROFILER:Now()-start)
         WaitTicks(2)
+        start = PROFILER:Now()
         while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
+            PROFILER:Add("EngineerBuildMarkedStructure",PROFILER:Now()-start)
             WaitTicks(2)
+            start = PROFILER:Now()
         end
         brain.base:BaseCompleteBuildMobile(constructionID)
         if (not engie) or engie.Dead then
+            PROFILER:Add("EngineerBuildMarkedStructure",PROFILER:Now()-start)
             return true
         end
         local target = brain.intel:GetEnemyStructure(pos)
@@ -136,10 +150,13 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
             IssueReclaim({engie},target)
             brain.base:BaseIssueBuildMobile({engie},pos,bp,constructionID)
             while engie and (not engie.Dead) and table.getn(engie:GetCommandQueue()) > 0 do
+                PROFILER:Add("EngineerBuildMarkedStructure",PROFILER:Now()-start)
                 WaitTicks(2)
+                start = PROFILER:Now()
             end
             brain.base:BaseCompleteBuildMobile(constructionID)
         end
+        PROFILER:Add("EngineerBuildMarkedStructure",PROFILER:Now()-start)
         return true
     else
         -- TODO: debug why this sometimes happens
@@ -150,25 +167,38 @@ function EngineerBuildMarkedStructure(brain,engie,structure,markerType)
 end
 
 function EngineerAssist(engie,target)
+    local start = PROFILER:Now()
     IssueClearCommands({engie})
     IssueGuard({engie},target)
+    PROFILER:Add("EngineerAssist",PROFILER:Now()-start)
     WaitTicks(2)
+    start = PROFILER:Now()
     while target and (not target.Dead) and engie and (not engie.Dead) and (not engie.CustomData.assistComplete) do
+        PROFILER:Add("EngineerAssist",PROFILER:Now()-start)
         WaitTicks(2)
+        start = PROFILER:Now()
     end
     if engie and (not engie.Dead) then
         -- Reset this engie
         IssueClearCommands({engie})
         engie.CustomData.assistComplete = nil
     end
+    PROFILER:Add("EngineerAssist",PROFILER:Now()-start)
 end
 
 function FactoryBuildUnit(fac,unit)
+    local start = PROFILER:Now()
     IssueClearCommands({fac})
     IssueBuildFactory({fac},unit,1)
+    PROFILER:Add("FactoryBuildUnit",PROFILER:Now()-start)
+    WaitTicks(1)
+    start = PROFILER:Now()
     while fac and not fac.Dead and not fac:IsIdleState() do
         -- Like, I know this is hammering something but you can't afford to wait on facs.
         -- In the future I want to queue up stuff properly, but for now just deal with it.
+        PROFILER:Add("FactoryBuildUnit",PROFILER:Now()-start)
         WaitTicks(1)
+        start = PROFILER:Now()
     end
+    PROFILER:Add("FactoryBuildUnit",PROFILER:Now()-start)
 end

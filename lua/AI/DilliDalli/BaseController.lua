@@ -209,17 +209,21 @@ BaseController = Class({
 
     RunMobileJobThread = function(self,job,engie,assist,buildRate,threadID)
         -- TODO: Support assistance
+        local start = PROFILER:Now()
         local activeJob = job
         local assistData = assist
         local success = false
         while activeJob do
             if assistData then
+                PROFILER:Add("RunMobileJobThread",PROFILER:Now()-start)
                 TroopFunctions.EngineerAssist(engie,assistData.unit)
+                start = PROFILER:Now()
                 self:OnCompleteAssist(activeJob.meta.id,buildRate,threadID)
                 success = true
             else
                 local unitID = Translation[activeJob.job.work][engie.factionCategory]
                 -- Build the thing
+                PROFILER:Add("RunMobileJobThread",PROFILER:Now()-start)
                 if activeJob.job.work == "MexT1" or activeJob.job.work == "MexT2" or activeJob.job.work == "MexT3" then
                     success = TroopFunctions.EngineerBuildMarkedStructure(self.brain,engie,unitID,"Mass")
                 elseif activeJob.job.work == "Hydro" then
@@ -227,6 +231,7 @@ BaseController = Class({
                 else
                     success = TroopFunctions.EngineerBuildStructure(self.brain,engie,unitID)
                 end
+                start = PROFILER:Now()
                 -- Return engie back to the pool
                 self:OnCompleteJob(engie,activeJob.meta.id,not success,buildRate,threadID,self.mobileJobs)
             end
@@ -247,14 +252,18 @@ BaseController = Class({
         if engie and not engie.Dead then
             engie.CustomData.isAssigned = false
         end
+        PROFILER:Add("RunMobileJobThread",PROFILER:Now()-start)
     end,
     RunFactoryJobThread = function(self,job,fac,buildRate,threadID)
         -- TODO: Support assistance
+        local start = PROFILER:Now()
         local activeJob = job
         while activeJob do
             local unitID = Translation[activeJob.job.work][fac.factionCategory]
             -- Build the thing
+            PROFILER:Add("RunFactoryJobThread",PROFILER:Now()-start)
             TroopFunctions.FactoryBuildUnit(fac,unitID)
+            start = PROFILER:Now()
             -- Return fac back to the pool
             self:OnCompleteJob(fac,activeJob.meta.id,false,buildRate,threadID,self.factoryJobs)
             if fac and (not fac.Dead) and (not fac.CustomData.excludeAssignment) then
@@ -269,12 +278,16 @@ BaseController = Class({
         if fac and (not fac.Dead) then
             fac.CustomData.isAssigned = false
         end
+        PROFILER:Add("RunFactoryJobThread",PROFILER:Now()-start)
     end,
     RunUpgradeJobThread = function(self,job,unit,buildRate,threadID)
+        local start = PROFILER:Now()
         -- while assigned wait
         while unit and (not unit.Dead) and unit.CustomData.isAssigned do
-            -- Probs fine, number of upgrades at any one time will be "smallish"
+            -- Probs fine, number of upgrades at any one time will be "smallish".  Will profile this to be sure
+            PROFILER:Add("RunUpgradeJobThread",PROFILER:Now()-start)
             WaitTicks(1)
+            start = PROFILER:Now()
         end
         if unit and (not unit.Dead) then
             -- Issue upgrade
@@ -282,16 +295,21 @@ BaseController = Class({
             IssueClearCommands({unit})
             IssueUpgrade({unit},Translation[job.job.work][unit.factionCategory])
         end
+        PROFILER:Add("RunUpgradeJobThread",PROFILER:Now()-start)
         WaitTicks(2)
+        start = PROFILER:Now()
         while unit and (not unit.Dead) and (not unit:IsIdleState()) do
             -- Still probably fine
+            PROFILER:Add("RunUpgradeJobThread",PROFILER:Now()-start)
             WaitTicks(2)
+            start = PROFILER:Now()
         end
         -- reset exclusion flag, to release the unit for jobs
         if unit and (not unit.Dead) then
             unit.CustomData.excludeAssignment = nil
         end
         self:OnCompleteJob(unit,job.meta.id,false,buildRate,threadID,self.upgradeJobs)
+        PROFILER:Add("RunUpgradeJobThread",PROFILER:Now()-start)
     end,
 
     AssignJobMobile = function(self,engie,job)
