@@ -8,7 +8,7 @@ PriorityQueue = Class({
 
     Queue = function(self,item)
         self.size = self.size + 1
-        self.items[self.size] = item
+        table.insert(self.items,self.size,item)
         self:HeapUp()
         return self.size
     end,
@@ -47,16 +47,19 @@ PriorityQueue = Class({
     HeapDown = function(self)
         -- item at 1 needs to be shuffled into the correct place
         local index = 1
-        while 2*index <= self.size do
+        while (2*index) <= self.size do
             local child1Index = 2*index
             local child2Index = 2*index+1
-            local c1Swap = ((not self.rev) and self.items[index].priority > self.items[child1Index].priority) or (self.rev and self.items[index].priority < self.items[child1Index].priority)
+            local c1Swap = ((not self.rev) and self.items[index].priority > self.items[child1Index].priority)
+                            or (self.rev and self.items[index].priority < self.items[child1Index].priority)
             local c2Swap = false
             if child2Index <= self.size then
-                c2Swap = ((not self.rev) and self.items[index].priority > self.items[child2Index].priority) or (self.rev and self.items[index].priority < self.items[child2Index].priority)
+                c2Swap = ((not self.rev) and (self.items[index].priority > self.items[child2Index].priority))
+                            or (self.rev and (self.items[index].priority < self.items[child2Index].priority))
             end
             if c1Swap and c2Swap then
-                c1Swap = ((not self.rev) and self.items[child1Index].priority <= self.items[child2Index].priority) or (self.rev and self.items[child1Index].priority >= self.items[child2Index].priority)
+                c1Swap = ((not self.rev) and (self.items[child1Index].priority <= self.items[child2Index].priority))
+                            or (self.rev and (self.items[child1Index].priority >= self.items[child2Index].priority))
             end
             if c1Swap then
                 local t = self.items[child1Index]

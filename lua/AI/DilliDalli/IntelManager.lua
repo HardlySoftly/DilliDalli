@@ -1,33 +1,35 @@
 local BOs = import('/mods/DilliDalli/lua/AI/DilliDalli/BuildOrders.lua')
 local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
 local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
 
-R2 = math.sqrt(2)
+
 
 IntelManager = Class({
     Initialise = function(self,brain)
         self.brain = brain
         self.centre = {ScenarioInfo.size[1],0,ScenarioInfo.size[2]}
-        self.zoneRadius = 30
-        self.edgeMult = 1.1
         self.threatTable = { land = {}, air = {} }
 
         self:LoadMapMarkers()
         self:FindSpawns()
-        self:GenerateMapZones()
-        self:GenerateMapEdges()
 
         self.mme = {}
     end,
 
     LoadMapMarkers = function(self)
-        self.gap = ScenarioInfo.DilliDalliMap.gap
-        self.xOffset = ScenarioInfo.DilliDalliMap.xOffset
-        self.zOffset = ScenarioInfo.DilliDalliMap.zOffset
-        self.xNum = ScenarioInfo.DilliDalliMap.xNum
-        self.zNum = ScenarioInfo.DilliDalliMap.zNum
-        -- Get our own copy of this since we migth want to edit fields in here
-        self.markers = table.deepcopy(ScenarioInfo.DilliDalliMap.markers)
+        local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
+        self.gap = MAP.gap
+        self.xOffset = MAP.xOffset
+        self.zOffset = MAP.zOffset
+        self.xNum = MAP.xNum
+        self.zNum = MAP.zNum
+        -- Get our own copy of this since we might want to edit fields in here
+        self.markers = table.deepcopy(MAP.markers)
+        self.zones = table.deepcopy(MAP.zones)
+        for _, v in self.zones do
+            v.control = {land = {enemy = 0, ally = 0}, air = {enemy = 0, ally = 0}}
+        end
     end,
 
     FindSpawns = function(self)
@@ -58,7 +60,7 @@ IntelManager = Class({
         return {math.min(math.max(1,i),self.xNum), math.min(math.max(1,j),self.zNum)}
     end,
 
-    GetPosition = function(i,j)
+    GetPosition = function(self,i,j)
         local x = self.xOffset + (i-1)*self.gap
         local z = self.xOffset + (j-1)*self.gap
         return {x, GetSurfaceHeight(x,z), z}
@@ -160,10 +162,6 @@ IntelManager = Class({
         return self.markers[indices0[1]][indices0[2]].land.component == self.markers[indices1[1]][indices1[2]].land.component
     end,
 
-    CreateZone = function(self,pos,weight)
-        return { pos = table.copy(pos), weight = weight, control = { land = { ally = 0, enemy = 0 }, air = { ally = 0, enemy = 0 } }, edges = {} }
-    end,
-
     FindZone = function(self,pos)
         local best = nil
         local bestDist = 0
@@ -174,82 +172,6 @@ IntelManager = Class({
             end
         end
         return best
-    end,
-
-    GenerateMapZones = function(self)
-        self.zones = {}
-        local massPoints = {}
-        for _, v in ScenarioUtils.GetMarkers() do
-            if v.type == "Mass" then
-                table.insert(massPoints, { pos=v.position, claimed = false, weight = 1, aggX = v.position[1], aggZ = v.position[3] })
-            end
-        end
-        complete = (table.getn(massPoints) == 0)
-        while not complete do
-            complete = true
-            -- Update weights
-            for _, v in massPoints do
-                v.weight = 1
-                v.aggX = v.pos[1]
-                v.aggZ = v.pos[3]
-            end
-            for _, v1 in massPoints do
-                if not v1.claimed then
-                    for _, v2 in massPoints do
-                        if (not v2.claimed) and VDist3(v1.pos,v2.pos) < self.zoneRadius then
-                            v1.weight = v1.weight + 1
-                            v1.aggX = v1.aggX + v2.pos[1]
-                            v1.aggZ = v1.aggZ + v2.pos[3]
-                        end
-                    end
-                end
-            end
-            -- Find next point to add
-            local best = nil
-            for _, v in massPoints do
-                if (not v.claimed) and ((not best) or best.weight < v.weight) then
-                    best = v
-                end
-            end
-            -- Add next point
-            best.claimed = true
-            local x = best.aggX/best.weight
-            local z = best.aggZ/best.weight
-            table.insert(self.zones,self:CreateZone({x,GetSurfaceHeight(x,z),z},best.weight))
-            -- Claim nearby points
-            for _, v in massPoints do
-                if (not v.claimed) and VDist3(v.pos,best.pos) < self.zoneRadius then
-                    v.claimed = true
-                elseif not v.claimed then
-                    complete = false
-                end
-            end
-        end
-    end,
-
-    GenerateMapEdges = function(self)
-        for k0, zone in self.zones do
-            for k1, v1 in self.zones do
-                if k1 == k0 or not self:CanPathToSurface(zone.pos,v1.pos) then
-                    continue
-                end
-                local amClosest = true
-                -- TODO: Replace VDist3 with actual distance calculations
-                -- TODO: Pathability checks
-                local vz1 = VDist3(v1.pos,zone.pos)/self.edgeMult - 10
-                for k2, v2 in self.zones do
-                    if k2 == k1 or k2 == k0  or not self:CanPathToSurface(zone.pos,v2.pos) then
-                        continue
-                    end
-                    if VDist3(v2.pos,zone.pos) < vz1 and VDist3(v1.pos,v2.pos) < vz1 then
-                        amClosest = false
-                    end
-                end
-                if amClosest then
-                    table.insert(zone.edges,v1)
-                end
-            end
-        end
     end,
 
     GetEnemyLandThreatInRadius = function(self, pos, radius)
@@ -349,28 +271,9 @@ IntelManager = Class({
         PROFILER:Add("MapMonitoringThread",PROFILER:Now()-start)
     end,
 
-    MapDrawingThread = function(self)
-        local start = PROFILER:Now()
-        while self.brain:IsAlive() do
-            for _, v in self.zones do
-                DrawCircle(v.pos,5*v.weight,'aaffffff')
-                DrawCircle(v.pos,v.control.land.enemy+1,'aaff2222')
-                DrawCircle(v.pos,v.control.land.ally+1,'aa22ff22')
-                for _, v2 in v.edges do
-                    DrawLine(v.pos,v2.pos,'aa000000')
-                end
-            end
-            PROFILER:Add("MapDrawingThread",PROFILER:Now()-start)
-            WaitTicks(2)
-            start = PROFILER:Now()
-        end
-        PROFILER:Add("MapDrawingThread",PROFILER:Now()-start)
-    end,
-
     Run = function(self)
         self:ForkThread(self.MapMonitoringThread)
         self:ForkThread(self.CacheClearThread)
-        --self:ForkThread(self.MapDrawingThread)
     end,
 
     CacheClearThread = function(self)
@@ -380,35 +283,6 @@ IntelManager = Class({
             self.mme = {}
             WaitTicks(1)
         end
-    end,
-
-    GetNeighbours = function(self,i,j)
-        res = {}
-        if i < self.xNum and j < self.zNum then
-            table.insert(res,{ i = i+1, j = j+1, d = R2*self.gap })
-        end
-        if i < self.xNum then
-            table.insert(res,{ i = i+1, j = j, d = self.gap })
-        end
-        if i < self.xNum and j > 1 then
-            table.insert(res,{ i = i+1, j = j-1, d = R2*self.gap })
-        end
-        if j > 1 then
-            table.insert(res,{ i = i, j = j-1, d = self.gap })
-        end
-        if i > 1 and j > 1 then
-            table.insert(res,{ i = i-1, j = j-1, d = R2*self.gap })
-        end
-        if i > 1 then
-            table.insert(res,{ i = i-1, j = j, d = self.gap })
-        end
-        if i > 1 and j < self.zNum then
-            table.insert(res,{ i = i-1, j = j+1, d = R2*self.gap })
-        end
-        if j < self.zNum then
-            table.insert(res,{ i = i, j = j+1, d = self.gap })
-        end
-        return res
     end,
 
     ForkThread = function(self, fn, ...)

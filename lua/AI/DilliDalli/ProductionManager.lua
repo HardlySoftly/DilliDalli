@@ -153,7 +153,7 @@ BaseProduction = Class({
     ManageJobs = function(self,mass)
         local massRemaining = mass - self.t1EngieJob.actualSpend
         local availableMex = self.brain.intel:GetNumAvailableMassPoints()
-        self.mexJob.duplicates = math.min(availableMex/1.5,math.max(self.brain.monitor.units.engies.t1-4,self.brain.monitor.units.engies.t1/1.5))
+        self.mexJob.duplicates = math.min(availableMex/2)
         local engiesRequired = math.max(4+math.min(10,availableMex/2),massRemaining/2)-self.brain.monitor.units.engies.t1
         -- Drop out early if we're still doing our build order
         if not self.brain.base.isBOComplete then
@@ -381,9 +381,9 @@ LandProduction = Class({
                 self.t2TankJob.targetSpend = actualMass * 0.8
                 self.t2AAJob.targetSpend = actualMass * 0.2
             else
-                self.t2TankJob.targetSpend = actualMass * 0.6
+                self.t2TankJob.targetSpend = actualMass * 0.9
                 self.t2AAJob.targetSpend = actualMass * 0.1
-                self.t2MMLJob.targetSpend = actualMass * 0.3
+                self.t2MMLJob.targetSpend = actualMass * 0.0
             end
         end
         massRemaining = math.max(0,massRemaining - t2Spend)
