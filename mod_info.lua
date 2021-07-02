@@ -1,5 +1,5 @@
 name = "AI: DilliDalli"
-uid = "28F4B5A9EDE30F06-version:0.1.2"
+uid = "28F4B5A9EDE30F06-version:0.1.3"
 version = 2
 copyright = "Softles"
 description = "ALPHA version: 1v1 specialist AI.  Complete AI code rewrite."

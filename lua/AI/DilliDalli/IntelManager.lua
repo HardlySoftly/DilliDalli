@@ -10,6 +10,7 @@ IntelManager = Class({
         self.brain = brain
         self.centre = {ScenarioInfo.size[1],0,ScenarioInfo.size[2]}
         self.threatTable = { land = {}, air = {} }
+        self.zoneRadius = 40
 
         self:LoadMapMarkers()
         self:FindSpawns()

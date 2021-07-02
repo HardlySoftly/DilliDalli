@@ -217,7 +217,7 @@ GameMap = Class({
 
     CheckConnectivitySurface = function(self,pos,xdelta,zdelta,orthX0,orthZ0,orthX1,orthZ1)
         local maxSlope = 0.5 -- Slope = ydiff/distance
-        local num = 2*self.gap
+        local num = math.ceil(3*self.gap)
         local length = self.gap*math.sqrt(xdelta*xdelta + zdelta*zdelta)
         local step = length/num
         local dist = math.sqrt(xdelta*xdelta + zdelta*zdelta)*step
@@ -236,7 +236,7 @@ GameMap = Class({
 
     CheckConnectivityLand = function(self,pos,xdelta,zdelta,orthX0,orthZ0,orthX1,orthZ1)
         local maxSlope = 0.5 -- Slope = ydiff/distance
-        local num = 10
+        local num = math.ceil(3*self.gap)
         local length = self.gap*math.sqrt(xdelta*xdelta + zdelta*zdelta)
         local step = length/num
         local dist = math.sqrt(xdelta*xdelta + zdelta*zdelta)*step
@@ -261,7 +261,7 @@ GameMap = Class({
 
     CheckConnectivityAmphibian = function(self,pos,xdelta,zdelta,orthX0,orthZ0,orthX1,orthZ1)
         local maxSlope = 0.5 -- Slope = ydiff/distance
-        local num = 10
+        local num = math.ceil(3*self.gap)
         local length = self.gap*math.sqrt(xdelta*xdelta + zdelta*zdelta)
         local step = length/num
         local dist = math.sqrt(xdelta*xdelta + zdelta*zdelta)*step
