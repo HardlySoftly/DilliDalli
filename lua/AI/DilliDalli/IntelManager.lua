@@ -2,8 +2,13 @@ local BOs = import('/mods/DilliDalli/lua/AI/DilliDalli/BuildOrders.lua')
 local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
 local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
+local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
 
-
+-- Zone classes
+local ALLIED = "allied"
+local ENEMY = "enemy"
+local CONTESTED = "contested"
+local NEUTRAL = "neutral"
 
 IntelManager = Class({
     Initialise = function(self,brain)
@@ -11,6 +16,7 @@ IntelManager = Class({
         self.centre = {ScenarioInfo.size[1],0,ScenarioInfo.size[2]}
         self.threatTable = { land = {}, air = {} }
         self.zoneRadius = 40
+        self.controlSpreadSpeed = 1.4
 
         self:LoadMapMarkers()
         self:FindSpawns()
@@ -18,21 +24,29 @@ IntelManager = Class({
         self.mme = {}
     end,
 
+    -- ========== Initital Setup Stuff ==========
     LoadMapMarkers = function(self)
-        local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
         self.gap = MAP.gap
         self.xOffset = MAP.xOffset
         self.zOffset = MAP.zOffset
         self.xNum = MAP.xNum
         self.zNum = MAP.zNum
-        -- Get our own copy of this since we might want to edit fields in here
-        self.markers = table.deepcopy(MAP.markers)
+        -- Pls don't edit these markers; it's shared across all DilliDalli brains.  I could copy out but 
+        self.markers = MAP.markers
         self.zones = table.deepcopy(MAP.zones)
+        -- TODO: update zone edge references
         for _, v in self.zones do
             v.control = {land = {enemy = 0, ally = 0}, air = {enemy = 0, ally = 0}}
+            v.intel = {control = {enemy = 0, allied = 0}, latest = 0, threat = {land = {enemy = 0, allied = 0}, air = {enemy = 0, allied = 0}}}
+            for _, e in v.edges do
+                for _, z in self.zones do
+                    if z.id == e.zoneID then
+                        e.zone = z
+                    end
+                end
+            end
         end
     end,
-
     FindSpawns = function(self)
         local myIndex = self.brain.aiBrain:GetArmyIndex()
         self.allies = {}
@@ -51,28 +65,21 @@ IntelManager = Class({
                 table.insert(self.allies,table.copy(pos))
             elseif IsEnemy(army.ArmyIndex,myIndex) then
                 table.insert(self.enemies,table.copy(pos))
+                local z = self:FindZone(pos)
+                if z then
+                    z.intel.enemyBase = true
+                    z.intel.control.enemy = 1
+                end
             end
         end
     end,
-
-    GetIndices = function(self,x,z)
-        local i = math.round((x-self.xOffset)/self.gap) + 1
-        local j = math.round((z-self.zOffset)/self.gap) + 1
-        return {math.min(math.max(1,i),self.xNum), math.min(math.max(1,j),self.zNum)}
-    end,
-
-    GetPosition = function(self,i,j)
-        local x = self.xOffset + (i-1)*self.gap
-        local z = self.xOffset + (j-1)*self.gap
-        return {x, GetSurfaceHeight(x,z), z}
-    end,
-
     PickBuildOrder = function(self)
         return BOs.LandLand
     end,
 
+    -- ========== Marker Stuff ==========
     EmptyMassMarkerExists = function(self,pos)
-        local indices = self:GetIndices(pos[1],pos[3])
+        local indices = MAP:GetIndices(pos[1],pos[3])
         local component = tostring(self.markers[indices[1]][indices[2]].surf.component)
         if self.mme[component] then
             return self.mme[component].exists
@@ -84,7 +91,6 @@ IntelManager = Class({
             end
         end
     end,
-
     FindNearestEmptyMarker = function(self,pos,t)
         local start = PROFILER:Now()
         local markers = ScenarioUtils.GetMarkers()
@@ -96,7 +102,7 @@ IntelManager = Class({
             if v.type == t then
                 local dist = VDist3(pos,v.position)
                 if dist < best and self:CanBuildOnMarker(v.position,bp)
-                               and self:CanPathToSurface(pos,v.position)
+                               and MAP:CanPathTo(pos,v.position,"surf")
                                and self.brain.base:LocationIsClear(v.position,bp) then
                     best = dist
                     bestMarker = v
@@ -106,7 +112,6 @@ IntelManager = Class({
         PROFILER:Add("FindNearestEmptyMarker",PROFILER:Now()-start)
         return bestMarker
     end,
-
     CanBuildOnMarker = function(self,pos)
         local alliedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Ally')
         if alliedUnits and (table.getn(alliedUnits) > 0) then
@@ -122,7 +127,6 @@ IntelManager = Class({
         end
         return true
     end,
-
     GetEnemyStructure = function(self,pos)
         local units = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Enemy')
         local myIndex = self.brain.aiBrain:GetArmyIndex()
@@ -134,7 +138,6 @@ IntelManager = Class({
         end
         return nil
     end,
-
     GetNumAvailableMassPoints = function(self)
         if self.massNumCached then
             return self.massNumCached
@@ -151,35 +154,11 @@ IntelManager = Class({
         return num
     end,
 
-    CanPathToSurface = function(self,pos0,pos1)
-        local indices0 = self:GetIndices(pos0[1],pos0[3])
-        local indices1 = self:GetIndices(pos1[1],pos1[3])
-        return self.markers[indices0[1]][indices0[2]].surf.component == self.markers[indices1[1]][indices1[2]].surf.component
-    end,
-
-    CanPathToLand = function(self,pos0,pos1)
-        local indices0 = self:GetIndices(pos0[1],pos0[3])
-        local indices1 = self:GetIndices(pos1[1],pos1[3])
-        return self.markers[indices0[1]][indices0[2]].land.component == self.markers[indices1[1]][indices1[2]].land.component
-    end,
-
-    FindZone = function(self,pos)
-        local best = nil
-        local bestDist = 0
-        for _, v in self.zones do
-            if (not best) or VDist3(pos,v.pos) < bestDist then
-                best = v
-                bestDist = VDist3(pos,v.pos)
-            end
-        end
-        return best
-    end,
-
+    -- ========== Threat Stuff ==========
     GetEnemyLandThreatInRadius = function(self, pos, radius)
         local units = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS,pos,radius,'Enemy')
         return self:GetLandThreat(units)
     end,
-
     GetLandThreat = function(self,units)
         local totalThreat = 0
         for _, unit in units do
@@ -187,7 +166,6 @@ IntelManager = Class({
         end
         return totalThreat
     end,
-
     GetLandThreatAndPos = function(self,units)
         local totalThreat = 0
         local x = 0
@@ -207,7 +185,6 @@ IntelManager = Class({
             return { threat = totalThreat, pos = {x, GetSurfaceHeight(x,z), z} }
         end
     end,
-
     GetUnitLandThreat = function(self,unit)
         if self.threatTable.land[unit.UnitId] then
             return self.threatTable.land[unit.UnitId]
@@ -224,7 +201,7 @@ IntelManager = Class({
             threat = 0.1
         elseif EntityCategoryContains(categories.LAND*categories.MOBILE,unit) then
             if EntityCategoryContains(categories.SCOUT,unit) then
-                threat = 0.1
+                threat = 0.2
             elseif EntityCategoryContains(categories.TECH1,unit) then
                 threat = 1
             elseif EntityCategoryContains(categories.TECH2,unit) then
@@ -238,7 +215,6 @@ IntelManager = Class({
         self.threatTable.land[unit.UnitId] = threat
         return threat
     end,
-
     GetAirThreat = function(self,units)
         local threat = 0
         for _, unit in units do
@@ -249,19 +225,85 @@ IntelManager = Class({
         return threat
     end,
 
+    -- ========== Zone Monitoring Stuff ==========
+    -- Assess who controls which zones
+    -- TODO: make use of threat data
+    ZoneControl = function(self,zone,alliedUnits,enemyUnits)
+        if zone.intel.latest == 0 then
+            -- TODO: make this a bit more continuous and a bit less discrete
+            if table.getn(alliedUnits) > 0 and table.getn(enemyUnits) > 0 and 2*table.getn(alliedUnits) > table.getn(enemyUnits) then
+                zone.intel.control.allied = table.getn(alliedUnits)/(table.getn(alliedUnits) + table.getn(enemyUnits))
+                zone.intel.control.enemy = table.getn(enemyUnits)/(table.getn(alliedUnits) + table.getn(enemyUnits))
+            elseif table.getn(enemyUnits) > 0 or zone.intel.enemyBase then
+                zone.intel.control.allied = 0.0
+                zone.intel.control.enemy = 1.0
+            elseif table.getn(alliedUnits) > 0 then
+                zone.intel.control.allied = 1.0
+                zone.intel.control.enemy = 0.0
+            end
+        else
+            zone.intel.control.allied = 0
+            local t = 0
+            for _, e in zone.edges do
+                t = math.max(t,(e.zone.intel.control.enemy-0.3)*self.controlSpreadSpeed/e.dist)
+            end
+            zone.intel.control.enemy = zone.intel.control.enemy + (1-zone.intel.control.enemy)*t
+        end
+    end,
+    -- TODO: Assess importance of different zones (structure investment)
+    ZoneImportance = function(self,zone,alliedUnits,enemyUnits)
+    end,
+    -- TODO: Assess threats in each zone
+    ZoneThreat = function(self,zone,alliedUnits,enemyUnits)
+        if zone.intel.latest == 0 then
+            zone.intel.threat.land.enemy = math.max(self:GetLandThreat(enemyUnits),0.9*zone.intel.threat.land.enemy)
+            zone.intel.threat.air.enemy = math.max(self:GetAirThreat(enemyUnits),0.9*zone.intel.threat.air.enemy)
+        else
+            zone.intel.threat.land.enemy = zone.intel.threat.land.enemy*0.99
+            zone.intel.threat.air.enemy = zone.intel.threat.air.enemy*0.99
+        end
+        zone.intel.threat.land.allied = self:GetLandThreat(alliedUnits)
+        zone.intel.threat.air.allied = self:GetAirThreat(alliedUnits)
+    end,
+    -- Assess when this zone was last scouted
+    -- TODO: detect scouts better for improved estimates
+    ZoneIntel = function(self,zone,alliedUnits,enemyUnits)
+        if table.getn(alliedUnits) > 0 then
+            zone.intel.latest = 0
+        else
+            zone.intel.latest = zone.intel.latest + 1
+        end
+    end,
+    -- TODO: Weight zones according to importance and distances (some kind of centrality measure)
+    ZoneReweighting = function(self)
+    end,
+    -- Classify zone based on control
+    ZoneClassify = function(self,zone)
+        if zone.intel.control.allied > 0.7 and (zone.intel.threat.land.allied > zone.intel.threat.land.enemy*3) then
+            zone.intel.class = ALLIED
+        elseif zone.intel.control.allied > 0.3 then
+            zone.intel.class = CONTESTED
+        elseif zone.intel.control.allied == 0 and zone.intel.control.enemy > 0.3 then
+            zone.intel.class = ENEMY
+        else
+            zone.intel.class = NEUTRAL
+        end
+    end,
     MonitorMapZones = function(self)
         local myIndex = self.brain.aiBrain:GetArmyIndex()
         for _, v in self.zones do
             local enemies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,v.pos,self.zoneRadius,'Enemy')
-            local allies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,v.pos,self.zoneRadius,'Ally')
-            v.control.land.enemy = self:GetLandThreat(enemies)
-            v.control.land.ally = self:GetLandThreat(allies)
-            v.control.air.enemy = self:GetAirThreat(enemies)
-            v.control.air.ally = self:GetAirThreat(allies)
+            local allies = self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,v.pos,self.zoneRadius*0.75,'Ally')
+            self:ZoneIntel(v,allies,enemies)
+            self:ZoneImportance(v,allies,enemies)
+            self:ZoneThreat(v,allies,enemies)
+            self:ZoneControl(v,allies,enemies)
+            self:ZoneClassify(v)
         end
+        self:ZoneReweighting()
     end,
-
     MapMonitoringThread = function(self)
+        WaitTicks(500)
         local start = PROFILER:Now()
         while self.brain:IsAlive() do
             self:MonitorMapZones()
@@ -271,9 +313,86 @@ IntelManager = Class({
         end
         PROFILER:Add("MapMonitoringThread",PROFILER:Now()-start)
     end,
+    NumLandAssaultZones = function(self)
+        local num = 0
+        for _, z in self.zones do
+            if z.intel.class == CONTESTED or z.intel.class == ENEMY then
+                for _, e in z.edges do
+                    if e.zone.intel.class == NEUTRAL or e.zone.intel.class == ALLIED then
+                        num = num+1
+                        break
+                    end
+                end
+            end
+        end
+        return num
+    end,
+    MapDrawingThread = function(self)
+        WaitTicks(30)
+        local start = PROFILER:Now()
+        while true do
+            for _, z in self.zones do
+                if z.intel.latest > 0 then
+                    DrawCircle(z.pos,z.intel.latest/10,'66666666')
+                end
+                if z.intel.control.allied > 0 then
+                    DrawCircle(z.pos,10*z.intel.control.allied,'aa44ff44')
+                else
+                    DrawCircle(z.pos,10,'aaffffff')
+                end
+                if z.intel.control.enemy > 0 then
+                    DrawCircle(z.pos,10*z.intel.control.enemy,'aaff4444')
+                end
+                for _, e in z.edges do
+                    if e.zone.id < z.id then
+                        local ca1 = z.intel.control.allied > z.intel.control.enemy
+                        local ca2 = e.zone.intel.control.allied > e.zone.intel.control.enemy
+                        local ce1 = z.intel.control.allied <= z.intel.control.enemy and z.intel.control.enemy > 0.3
+                        local ce2 = e.zone.intel.control.allied <= e.zone.intel.control.enemy and e.zone.intel.control.enemy > 0.3
+                        if ca1 and ca2 then
+                            -- Allied edge
+                            DrawLine(z.pos,e.zone.pos,'8800ff00')
+                        elseif (ca1 and ce2) or (ca2 and ce1) then
+                            -- Contested edge
+                            DrawLine(z.pos,e.zone.pos,'88ffff00')
+                        elseif ce1 and ce2 then
+                            -- Enemy edge
+                            DrawLine(z.pos,e.zone.pos,'88ff0000')
+                        elseif (ca1 or ca2) and (not (ce1 or ce2)) then
+                            -- Allied expansion edge
+                            DrawLine(z.pos,e.zone.pos,'8800ffff')
+                        elseif (ce1 or ce2) and (not (ca1 or ca2)) then
+                            -- Enemy expansion edge
+                            DrawLine(z.pos,e.zone.pos,'88ff00ff')
+                        else
+                            -- Nobodies edge
+                            DrawLine(z.pos,e.zone.pos,'66666666')
+                        end
+                    end
+                end
+            end
+            PROFILER:Add("MapDrawingThread",PROFILER:Now()-start)
+            WaitTicks(2)
+            start = PROFILER:Now()
+        end
+    end,
+
+    -- ========== Misc Stuff ==========
+    FindZone = function(self,pos)
+        local best = nil
+        local bestDist = 0
+        for _, v in self.zones do
+            if (not best) or VDist3(pos,v.pos) < bestDist then
+                best = v
+                bestDist = VDist3(pos,v.pos)
+            end
+        end
+        return best
+    end,
 
     Run = function(self)
         self:ForkThread(self.MapMonitoringThread)
+        --self:ForkThread(self.MapDrawingThread)
         self:ForkThread(self.CacheClearThread)
     end,
 

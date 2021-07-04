@@ -2,6 +2,7 @@ local TroopFunctions = import('/mods/DilliDalli/lua/AI/DilliDalli/TroopFunctions
 local Translation = import('/mods/DilliDalli/lua/AI/DilliDalli/FactionCompatibility.lua').translate
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
 local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
 
 BaseController = Class({
     Initialise = function(self,brain)
@@ -355,7 +356,7 @@ BaseController = Class({
         local myPos = engie:GetPosition()
         for _, v in job.meta.assigned do
             local theirPos = v.unit:GetPosition()
-            if self.brain.intel:CanPathToSurface(myPos,theirPos) and VDist3(myPos,theirPos) < self.assistRadius and not v.unit:IsBeingBuilt() then
+            if MAP:CanPathTo(myPos,theirPos,"surf") and VDist3(myPos,theirPos) < self.assistRadius and not v.unit:IsBeingBuilt() then
                 return { unit = v.unit, thread = v.thread }
             end
         end

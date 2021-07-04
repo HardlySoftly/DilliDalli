@@ -13,7 +13,7 @@ GameMap = Class({
             self:CreateMapMarkers()
             self:InitZones()
             local END = GetSystemTimeSecondsOnlyForProfileUse()
-            LOG(string.format('DilliDalli: Function CreateMapMarkers() finished, runtime: %.2f seconds.', END - START  ))
+            LOG(string.format('DilliDalli: Function CreateMapMarkers() finished, runtime: %.2f seconds.', END - START ))
             if drawStuffz then
                 ForkThread(
                     function()
@@ -21,7 +21,7 @@ GameMap = Class({
                         while true do
                             --self:DrawComponentsLand()
                             self:DrawZoning()
-                            self:DrawZones()
+                            --self:DrawZones()
                             WaitTicks(2)
                         end
                     end
@@ -456,17 +456,17 @@ GameMap = Class({
             --LOG("Zones: "..tostring(work:Size()))
             local item = work:Dequeue()
             if not self.markers[item.i][item.j].surf.nearestZone then
-                self.markers[item.i][item.j].surf.nearestZone = item.zone
+                self.markers[item.i][item.j].surf.nearestZone = item.zone.id
                 local neighbours = self:GetNeighbours(item.i,item.j,"surf")
                 for _, v in neighbours do
                     if (not self.markers[v.i][v.j].surf.nearestZone) then
                         --LOG("Pri: "..tostring(item.priority+v.d))
                         work:Queue({i=v.i, j=v.j, priority=item.priority+v.d, zone=item.zone})
-                    elseif self.markers[v.i][v.j].surf.nearestZone.id ~= item.zone.id then
+                    elseif self.markers[v.i][v.j].surf.nearestZone ~= item.zone.id then
                         self:AddEdge(self.markers[v.i][v.j].surf.nearestZone,item.zone)
                     end
                 end
-            elseif self.markers[item.i][item.j].surf.nearestZone.id ~= item.zone.id then
+            elseif self.markers[item.i][item.j].surf.nearestZone ~= item.zone.id then
                 local neighbours = self:GetNeighbours(item.i,item.j,"surf")
                 for _, v in neighbours do
                     if self.markers[v.i][v.j].surf.nearestZone then
@@ -478,9 +478,15 @@ GameMap = Class({
         end
     end,
 
-    AddEdge = function(self,z1,z2)
-        if z1.id == z2.id then
+    AddEdge = function(self,z1ID,z2)
+        if z1ID == z2.id then
             return
+        end
+        local z1
+        for _, v in self.zones do
+            if v.id == z1ID then
+                z1 = v
+            end
         end
         for _, v in z1.edges do
             if v.id == z2.id then
@@ -489,8 +495,8 @@ GameMap = Class({
         end
         local dist = self:AStarDist(z1.pos,z2.pos,"surf")
         if dist > 0 then
-            table.insert(z1.edges,{zone = z2, dist = dist})
-            table.insert(z2.edges,{zone = z1, dist = dist})
+            table.insert(z1.edges,{zone = z2, zoneID = z2.id, dist = dist})
+            table.insert(z2.edges,{zone = z1, zoneID = z1.id, dist = dist})
         end
     end,
 
@@ -539,8 +545,8 @@ GameMap = Class({
                                   and j1 <= self.zNum
                                   and self.markers[i][j].surf.nearestZone
                                   and self.markers[i1][j1].surf.nearestZone
-                                  and self.markers[i][j].surf.nearestZone.id == self.markers[i1][j1].surf.nearestZone.id then
-                            DrawLine(self.markers[i][j].pos,self.markers[i1][j1].pos,colours[math.mod(self.markers[i][j].surf.nearestZone.id-1,table.getn(colours))+1])
+                                  and self.markers[i][j].surf.nearestZone == self.markers[i1][j1].surf.nearestZone then
+                            DrawLine(self.markers[i][j].pos,self.markers[i1][j1].pos,colours[math.mod(self.markers[i][j].surf.nearestZone-1,table.getn(colours))+1])
                         end
                     end
                 end

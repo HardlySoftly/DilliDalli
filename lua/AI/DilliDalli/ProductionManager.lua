@@ -1,4 +1,5 @@
 local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
 
 LOW = 100
 NORMAL = 200
@@ -78,16 +79,16 @@ ProductionManager = Class({
         local storageModifier = 0.85 + 1*self.brain.aiBrain:GetEconomyStoredRatio('MASS')
         local availableMass = self.brain.monitor.mass.income*storageModifier
         local section0 = math.min(5,availableMass)
-        local section1 = math.min(14,availableMass-section0)
-        local section2 = math.min(40,availableMass-section0-section1)
-        local section3 = math.min(100,availableMass-section0-section1-section2)
+        local section1 = math.min(10,availableMass)-section0
+        local section2 = math.min(30,availableMass)-section0-section1
+        local section3 = math.min(90,availableMass)-section0-section1-section2
         local section4 = availableMass-section0-section1-section2-section3
         -- Base allocation
-        self.allocations[1].mass = section0 + 0.2*section1 + 0.3*section2 + 0.38*section3 + 0.4*section4
+        self.allocations[1].mass = section0 + 0.1*section1 + 0.1*section2 + 0.3*section3 + 0.4*section4
         -- Land allocation
-        self.allocations[2].mass = section1*0.8 + section2*0.6 + section3*0.6 + section4*0.6
+        self.allocations[2].mass = section1*0.9 + section2*0.8 + section3*0.65 + section4*0.6
         -- Air allocation
-        self.allocations[3].mass = section2*0.1 + section3*0.02
+        self.allocations[3].mass = section2*0.1 + section3*0.05
     end,
 
     ForkThread = function(self, fn, ...)
@@ -126,7 +127,7 @@ BaseProduction = Class({
         self.brain = brain
         self.coord = coord
         -- Mex expansion, controlled via duplicates (considered to cost nothing mass wise)
-        self.mexJob = self.brain.base:CreateGenericJob({ duplicates = 2, count = JOB_INF, targetSpend = JOB_INF, work = "MexT1", keep = true, priority = LOW, assist = false })
+        self.mexJob = self.brain.base:CreateGenericJob({ duplicates = 10, count = JOB_INF, targetSpend = JOB_INF, work = "MexT1", keep = true, priority = LOW, assist = false })
         self.brain.base:AddMobileJob(self.mexJob)
         -- Pgens - controlled via target spend
         self.t1PgenJob = self.brain.base:CreateGenericJob({ duplicates = 10, count = JOB_INF, targetSpend = 0, work = "PgenT1", keep = true, priority = NORMAL })
@@ -224,7 +225,7 @@ LandProduction = Class({
         self.name = "Land"
         self.brain = brain
         self.coord = coord
-        self.island = not self.brain.intel:CanPathToLand(self.brain.intel.allies[1],self.brain.intel.enemies[1])
+        self.island = not MAP:CanPathTo(self.brain.intel.allies[1],self.brain.intel.enemies[1],"land")
         -- Base zone
         self.baseZone = self.brain.intel:FindZone(self.brain.intel.allies[1])
         -- T1 jobs
@@ -234,25 +235,25 @@ LandProduction = Class({
         self.brain.base:AddFactoryJob(self.t1TankJob)
         self.t1ArtyJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "ArtyT1", keep = true, priority = NORMAL })
         self.brain.base:AddFactoryJob(self.t1ArtyJob)
-        self.t1AAJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AntiAirT1", keep = true, priority = NORMAL })
+        self.t1AAJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AntiAirT1", keep = true, priority = NORMAL-1 })
         self.brain.base:AddFactoryJob(self.t1AAJob)
         -- T2 jobs
-        self.t2TankJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "DirectFireT2", keep = true, priority = NORMAL })
+        self.t2TankJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "DirectFireT2", keep = true, priority = NORMAL+1 })
         self.brain.base:AddFactoryJob(self.t2TankJob)
-        self.t2HoverJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AmphibiousT2", keep = true, priority = NORMAL })
+        self.t2HoverJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AmphibiousT2", keep = true, priority = NORMAL+1 })
         self.brain.base:AddFactoryJob(self.t2HoverJob)
         self.t2AAJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AntiAirT2", keep = true, priority = NORMAL })
         self.brain.base:AddFactoryJob(self.t2AAJob)
-        self.t2MMLJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "MMLT2", keep = true, priority = NORMAL })
+        self.t2MMLJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "MMLT2", keep = true, priority = NORMAL+1 })
         self.brain.base:AddFactoryJob(self.t2MMLJob)
         -- T3 jobs
-        self.t3LightJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "DirectFireT3", keep = true, priority = NORMAL })
+        self.t3LightJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "DirectFireT3", keep = true, priority = NORMAL+2 })
         self.brain.base:AddFactoryJob(self.t3LightJob)
-        self.t3HeavyJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "HeavyLandT3", keep = true, priority = NORMAL })
+        self.t3HeavyJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "HeavyLandT3", keep = true, priority = NORMAL+2 })
         self.brain.base:AddFactoryJob(self.t3HeavyJob)
-        self.t3AAJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AntiAirT3", keep = true, priority = NORMAL })
+        self.t3AAJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "AntiAirT3", keep = true, priority = NORMAL+1 })
         self.brain.base:AddFactoryJob(self.t3AAJob)
-        self.t3ArtyJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "ArtyT3", keep = true, priority = NORMAL })
+        self.t3ArtyJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "ArtyT3", keep = true, priority = NORMAL+2 })
         self.brain.base:AddFactoryJob(self.t3ArtyJob)
         -- Experimental jobs
         self.expJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = JOB_INF, targetSpend = 0, work = "LandExp", keep = true, priority = HIGH })
@@ -325,9 +326,9 @@ LandProduction = Class({
         self.t3SupportJob.targetSpend = 0
         if (t3Spend < t3Target/1.2) and (self.brain.monitor.units.facs.land.idle.t3 == 0) then
             if self.brain.monitor.units.facs.land.total.t2 - self.brain.monitor.units.facs.land.hq.t2 > 0 then
-                self.t3SupportJob.targetSpend = t3Target - t3Spend
+                self.t3SupportJob.targetSpend = (t3Target - t3Spend)/2
             elseif self.brain.monitor.units.facs.land.total.t1 > 0 then
-                self.t2SupportJob.targetSpend = t3Target - t3Spend
+                self.t2SupportJob.targetSpend = (t3Target - t3Spend)/2
             else
                 self.facJob.targetSpend = t3Target - t3Spend
             end
@@ -339,7 +340,7 @@ LandProduction = Class({
                 self.facJob.targetSpend = self.facJob.targetSpend + t2Target - t2Spend
             end
         end
-        massRemaining = math.max(0,massRemaining - self.t2SupportJob.actualSpend - self.t3SupportJob.actualSpend - self.facJob.actualSpend)
+        massRemaining = math.max(0,massRemaining - self.t2SupportJob.actualSpend*2 - self.t3SupportJob.actualSpend*2 - self.facJob.actualSpend)
 
         -- T1,T2,T3,Exp spending allocations + ratios (1)
         --    Based on:
@@ -362,8 +363,8 @@ LandProduction = Class({
             self.t3ArtyJob.targetSpend = 0
             local actualMass = massRemaining*1.2
             if self.brain.monitor.units.land.count.t3 < 16 then
-                self.t3LightJob.targetSpend = actualMass*0.8
-                self.t3AAJob.targetSpend = actualMass*0.2
+                self.t3LightJob.targetSpend = actualMass*0.9
+                self.t3AAJob.targetSpend = actualMass*0.1
             else
                 self.t3HeavyJob.targetSpend = actualMass*0.9
                 self.t3AAJob.targetSpend = actualMass*0.1
@@ -422,7 +423,7 @@ LandProduction = Class({
             self.t1TankJob.priority = NORMAL
             self.t1ArtyJob.priority = NORMAL
         end
-        if self.baseZone.control.air.enemy < 0.5 then
+        if self.baseZone.intel.threat.air.enemy < 0.5 then
             self.t3AAJob.priority = NORMAL
             self.t2AAJob.priority = NORMAL
             self.t1AAJob.priority = NORMAL

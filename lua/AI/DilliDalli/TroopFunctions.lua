@@ -1,5 +1,6 @@
 local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
 local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
+local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
 
 function WaitingOnCommands(cmds)
     for _, cmd in cmds do
@@ -47,7 +48,7 @@ function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, r
     local maxIterations = 100000 -- 300x300 square
     while iterations < maxIterations do
         iterations = iterations + 1
-        if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) and intelManager:CanPathToSurface(location,targetLocation)
+        if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) and MAP:CanPathTo(location,targetLocation,"surf")
                                                                              and baseManager:LocationIsClear(targetLocation,blueprint) then
             -- TODO add adjacency check support
             PROFILER:Add("FindLocation",PROFILER:Now()-startTime)
