@@ -193,9 +193,15 @@ IntelManager = Class({
         if EntityCategoryContains(categories.COMMAND,unit) then
             threat = 20
         elseif EntityCategoryContains(categories.STRUCTURE,unit) then
-            threat = 0.1
+            threat = 0.01
             if EntityCategoryContains(categories.DIRECTFIRE,unit) then
-                threat = 5
+                if EntityCategoryContains(categories.TECH1,unit) then
+                    threat = 6
+                elseif EntityCategoryContains(categories.TECH2,unit) then
+                    threat = 12
+                else
+                    threat = 15
+                end
             end
         elseif EntityCategoryContains(categories.ENGINEER,unit) then
             threat = 0.1

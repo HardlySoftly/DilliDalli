@@ -100,6 +100,11 @@ LandController = Class({
                         end
                     end
                 end
+                if table.getn(zones) == 0 then
+                    for _, spawn in self.brain.intel.enemies do
+                        table.insert(zones,{zone = MAP:FindZone(spawn), assigned = false})
+                    end
+                end
                 -- Now groups
                 local groups = {}
                 for _, g in self.groups do
@@ -234,7 +239,7 @@ LandController = Class({
         -- Delete dead groups
         local i = 1
         while i <= table.getn(self.groups) do
-            if self.groups[i]:Size() == 0 then
+            if (self.groups[i]:Size() == 0) or self.groups[i].stop then
                 table.remove(self.groups,i)
             else
                 i = i+1
@@ -436,6 +441,7 @@ LandGroup = Class({
         self.stagingZone = nil
         self.targetingCounter = 0
         self.confidence = 2.0
+        self.attacking = true
 
         self.reinforceCounter = 0
         self.radius = 30
@@ -452,45 +458,75 @@ LandGroup = Class({
         end
     end,
 
+    AssaultDebuggingThread = function(self)
+        local start = PROFILER:Now()
+        while self.size > 0 and not self.stop do
+            local myPos = self:Position()
+            DrawCircle(myPos,table.getn(self.units),'aaffffff')
+            if self.targetZone then
+                DrawCircle(self.targetZone.pos,1+self.targetZone.intel.threat.land.enemy,'aaff4444')
+                if self.attacking then
+                    DrawLine(self.targetZone.pos,myPos,'aaff4444')
+                else
+                    DrawLine(self.targetZone.pos,myPos,'66444444')
+                end
+            end
+            if self.stagingZone then
+                DrawCircle(self.stagingZone.pos,1+self.localSupport,'aa44ff44')
+                if not self.attacking then
+                    DrawLine(self.stagingZone.pos,myPos,'aa44ff44')
+                else
+                    DrawLine(self.stagingZone.pos,myPos,'66444444')
+                end
+            end
+            PROFILER:Add("AssaultDebuggingThread",PROFILER:Now()-start)
+            WaitTicks(2)
+            start = PROFILER:Now()
+        end
+    end,
+
     AssaultControlThread = function(self)
         WaitTicks(2)
-        local attacking = true
+        local start = PROFILER:Now()
         local clearing = 0
+        local prompt = 0
         local oldID = -1
-        while self:Resize() > 0 do
-            local start = PROFILER:Now()
+        while self:Resize() > 0 and not self.stop do
             self:IntelCheck()
             local myPos = self:Reinforce()
             if not self.targetZone then
                 self.controller.rematch = true
-                attacking = false
-            elseif self.targetZone.id ~= oldID then
-                if true or attacking then
+                self.attacking = false
+            elseif (self.targetZone.id ~= oldID) or (prompt > 20) then
+                if self.attacking then
                     IssueClearCommands(self.units)
                     IssueMove(self.units,self.targetZone.pos)
-                    attacking = true
+                    self.attacking = true
                 else
                     IssueClearCommands(self.units)
                     IssueMove(self.units,self.stagingZone.pos)
                 end
+                prompt = 0
                 oldID = self.targetZone.id
+            else
+                prompt = prompt + 1
             end
             -- If the target has higher threat than the whole group, find a new staging zone
             if self.targetZone and self.stagingZone then
-                if attacking and (self.localSupport < self.targetZone.intel.threat.land.enemy) then
-                    attacking = false
+                if self.attacking and (self.localSupport < self.targetZone.intel.threat.land.enemy) then
+                    self.attacking = false
                     IssueClearCommands(self.units)
                     IssueMove(self.units,self.stagingZone.pos)
-                elseif (not attacking) and (self.localSupport*self.confidence > self.targetZone.intel.threat.land.enemy) and self.collected then
-                    attacking = true
+                elseif (not self.attacking) and (self.localSupport*self.confidence > self.targetZone.intel.threat.land.enemy) and self.collected then
+                    self.attacking = true
                     IssueClearCommands(self.units)
                     IssueMove(self.units,self.targetZone.pos)
                 end
                 
                 if VDist3(myPos,self.targetZone.pos) < 10 then
-                    if self.targetZone.intel.threat.land.enemy == 0 then
+                    if (not self.localThreatPos) then
                         self.controller.rematch = true
-                        clearing = 0
+                        clearing = 2
                     else
                         clearing = clearing - 1
                         if (clearing <= 0) and self.localThreatPos then
@@ -502,8 +538,10 @@ LandGroup = Class({
                 end
             end
             -- Dodge local enemies
+            -- TODO
             PROFILER:Add("AssaultControlThread",PROFILER:Now()-start)
             WaitTicks(10)
+            start = PROFILER:Now()
         end
     end,
 
@@ -597,10 +635,10 @@ LandGroup = Class({
                     i = i+1
                 end
             end
-            if self.stagingZone then
+            if (not self.attacking) and self.stagingZone then
                 IssueClearCommands(moved)
                 IssueMove(moved,self.stagingZone.pos)
-            elseif self.targetZone then
+            elseif self.attacking and self.targetZone then
                 IssueClearCommands(moved)
                 IssueMove(moved,self.targetZone.pos)
             end
@@ -647,6 +685,7 @@ LandGroup = Class({
 
     Run = function(self)
         self:ForkThread(self.AssaultControlThread)
+        self:ForkThread(self.AssaultDebuggingThread)
     end,
 
     ForkThread = function(self, fn, ...)
