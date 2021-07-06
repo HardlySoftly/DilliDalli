@@ -37,7 +37,12 @@ IntelManager = Class({
         -- TODO: update zone edge references
         for _, v in self.zones do
             v.control = {land = {enemy = 0, ally = 0}, air = {enemy = 0, ally = 0}}
-            v.intel = {control = {enemy = 0, allied = 0}, latest = 0, threat = {land = {enemy = 0, allied = 0}, air = {enemy = 0, allied = 0}}}
+            v.intel = {
+                control = {enemy = 0, allied = 0},
+                latest = 0,
+                threat = {land = {enemy = 0, allied = 0}, air = {enemy = 0, allied = 0}},
+                importance = {enemy = 0, allied = 0}
+            }
             for _, e in v.edges do
                 for _, z in self.zones do
                     if z.id == e.zoneID then
@@ -258,6 +263,12 @@ IntelManager = Class({
     end,
     -- TODO: Assess importance of different zones (structure investment)
     ZoneImportance = function(self,zone,alliedUnits,enemyUnits)
+        zone.intel.importance.enemy = 0
+        for _, v in enemyUnits do
+            if EntityCategoryContains(categories.STRUCTURE, v) then
+                zone.intel.importance.enemy = zone.intel.importance.enemy + 1
+            end
+        end
     end,
     -- TODO: Assess threats in each zone
     ZoneThreat = function(self,zone,alliedUnits,enemyUnits)
@@ -285,7 +296,7 @@ IntelManager = Class({
     end,
     -- Classify zone based on control
     ZoneClassify = function(self,zone)
-        if zone.intel.control.allied > 0.7 and (zone.intel.threat.land.allied > zone.intel.threat.land.enemy*3) then
+        if zone.intel.control.allied > 0.7 and (zone.intel.threat.land.allied > zone.intel.threat.land.enemy*3) and (zone.intel.importance.enemy == 0) then
             zone.intel.class = ALLIED
         elseif zone.intel.control.allied > 0.3 then
             zone.intel.class = CONTESTED
@@ -398,7 +409,7 @@ IntelManager = Class({
 
     Run = function(self)
         self:ForkThread(self.MapMonitoringThread)
-        --self:ForkThread(self.MapDrawingThread)
+        self:ForkThread(self.MapDrawingThread)
         self:ForkThread(self.CacheClearThread)
     end,
 

@@ -600,7 +600,7 @@ AirProduction = Class({
             self.scoutJob.targetSpend = 0
         end
         if self.brain.monitor.units.facs.air.idle.t1 == 0 and self.brain.base.isBOComplete then
-            self.facJob.targetSpend = mass - self.intieJob.actualSpend - self.scoutJob.actualSpend
+            self.facJob.targetSpend = mass - self.intieJob.actualSpend - self.scoutJob.actualSpend - self.facJob.actualSpend
         end
     end,
 })

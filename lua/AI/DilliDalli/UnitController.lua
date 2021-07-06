@@ -117,7 +117,7 @@ LandController = Class({
                 for _, z in zones do
                     for _, g in groups do
                         -- Higher is better
-                        local s = VDist3(g.pos,z.zone.pos)/(g.group:Size()*z.zone.weight)
+                        local s = VDist3(g.pos,z.zone.pos)/(g.group:Size()*(z.zone.weight+z.zone.intel.importance.enemy))
                         scoreQueue:Queue({ zone = z, group = g, priority = s})
                     end
                 end
@@ -309,7 +309,7 @@ LandController = Class({
 
     BiasLocation = function(self,pos,target,dist)
         local delta = VDiff(target,pos)
-        local norm = VDist2(delta[1],delta[3],0,0)
+        local norm = math.max(VDist2(delta[1],delta[3],0,0),1)
         local x = pos[1]+dist*delta[1]/norm
         local z = pos[3]+dist*delta[3]/norm
         x = math.min(ScenarioInfo.size[1]-5,math.max(5,x))
@@ -419,6 +419,9 @@ LandController = Class({
 })
 
 LandGroup = Class({
+    ZONEATTACK = 1,
+    RETREAT = 2,
+
     Init = function(self,brain,controller,id)
         self.brain = brain
         self.controller = controller
@@ -442,6 +445,8 @@ LandGroup = Class({
         self.targetingCounter = 0
         self.confidence = 2.0
         self.attacking = true
+        self.state = LandGroup.ZONEATTACK
+        self.lastPos = nil
 
         self.reinforceCounter = 0
         self.radius = 30
@@ -455,6 +460,12 @@ LandGroup = Class({
         end
         for _, v in other.reinforcing do
             self:Add(v)
+        end
+        if (not self.scout) and (other.scout) then
+            self.scout = other.scout
+        end
+        if (not self.acu) and (other.acu) then
+            self.acu = other.acu
         end
     end,
 
@@ -485,63 +496,98 @@ LandGroup = Class({
         end
     end,
 
+    GetRandomMoveLoc = function(self,pos)
+        return {pos[1]+Random(-3,3),pos[2],pos[3]+Random(-3,3)}
+    end,
+
+    RetreatFunction = function(self, t, myPos)
+        -- Am I still within the necessary parameters for this state?
+        if (t > 0) then
+            if (not self.localThreatPos) or (self.localSupport > self.localThreat*1.2) then
+                return LandGroup.ZONEATTACK
+            end
+        end
+        local retreatPos = self.controller:BiasLocation(myPos,self.localThreatPos,-20)
+        if VDist3(retreatPos,self.lastPos) > 7 then
+            IssueClearCommands(self.units)
+            IssueMove(self.units,self:GetRandomMoveLoc(retreatPos))
+            self.lastPos = table.copy(retreatPos)
+        end
+        return 0
+    end,
+    ZoneAttackFunction = function(self, t, myPos)
+        if (t > 0) then
+            if (self.localSupport < self.localThreat*1.0) then
+                return LandGroup.RETREAT
+            end
+        end
+        if (t == 0) or (not self.lastPos) then
+            if self.targetZone then
+                self.attacking = (self.localSupport*self.confidence >= self.targetZone.intel.threat.land.enemy)
+                if self.attacking then
+                    IssueClearCommands(self.units)
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos))
+                    self.lastPos = table.copy(self.targetZone.pos)
+                else
+                    IssueClearCommands(self.units)
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.stagingZone.pos))
+                    self.lastPos = table.copy(self.stagingZone.pos)
+                end
+            end
+        else
+            if self.attacking then
+                self.attacking = (self.localSupport*self.confidence >= self.targetZone.intel.threat.land.enemy)
+            else
+                self.attacking = (self.localSupport*self.confidence*0.75 >= self.targetZone.intel.threat.land.enemy)
+            end
+            if self.attacking and self.targetZone then
+                if VDist3(self.lastPos,self.targetZone.pos) > 10 then
+                    IssueClearCommands(self.units)
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos))
+                    self.lastPos = table.copy(self.targetZone.pos)
+                end
+            elseif self.stagingZone then
+                if VDist3(self.lastPos,self.stagingZone.pos) > 10 then
+                    IssueClearCommands(self.units)
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.stagingZone.pos))
+                    self.lastPos = table.copy(self.stagingZone.pos)
+                end
+            end
+        end
+        return 0
+    end,
+
     AssaultControlThread = function(self)
         WaitTicks(2)
         local start = PROFILER:Now()
-        local clearing = 0
-        local prompt = 0
-        local oldID = -1
+        local t = 1
         while self:Resize() > 0 and not self.stop do
-            self:IntelCheck()
             local myPos = self:Reinforce()
-            if not self.targetZone then
+            if not self.lastPos then
+                self.lastPos = table.copy(myPos)
+            end
+            self:IntelCheck(myPos)
+            local newState = 0
+            if (not self.targetZone) then
                 self.controller.rematch = true
                 self.attacking = false
-            elseif (self.targetZone.id ~= oldID) or (prompt > 20) then
-                if self.attacking then
-                    IssueClearCommands(self.units)
-                    IssueMove(self.units,self.targetZone.pos)
-                    self.attacking = true
-                else
-                    IssueClearCommands(self.units)
-                    IssueMove(self.units,self.stagingZone.pos)
-                end
-                prompt = 0
-                oldID = self.targetZone.id
+            end
+            -- Not the final form for my behaviours here, but you get the idea of how I might want to include modular behaviours with transitions between states
+            if self.state == LandGroup.ZONEATTACK then
+                newState = self:ZoneAttackFunction(t,myPos)
+            elseif self.state == LandGroup.RETREAT then
+                newState = self:RetreatFunction(t,myPos)
+            end
+            if (t > 0) and (newState ~= 0) and (self.state ~= newState) then
+                -- Go around again to run the new behaviour
+                t = 0
+                self.state = newState
             else
-                prompt = prompt + 1
+                t = t+1
+                PROFILER:Add("AssaultControlThread",PROFILER:Now()-start)
+                WaitTicks(10)
+                start = PROFILER:Now()
             end
-            -- If the target has higher threat than the whole group, find a new staging zone
-            if self.targetZone and self.stagingZone then
-                if self.attacking and (self.localSupport < self.targetZone.intel.threat.land.enemy) then
-                    self.attacking = false
-                    IssueClearCommands(self.units)
-                    IssueMove(self.units,self.stagingZone.pos)
-                elseif (not self.attacking) and (self.localSupport*self.confidence > self.targetZone.intel.threat.land.enemy) and self.collected then
-                    self.attacking = true
-                    IssueClearCommands(self.units)
-                    IssueMove(self.units,self.targetZone.pos)
-                end
-                
-                if VDist3(myPos,self.targetZone.pos) < 10 then
-                    if (not self.localThreatPos) then
-                        self.controller.rematch = true
-                        clearing = 2
-                    else
-                        clearing = clearing - 1
-                        if (clearing <= 0) and self.localThreatPos then
-                            IssueClearCommands(self.units)
-                            IssueAggressiveMove(self.units,self.localThreatPos)
-                            clearing = 5
-                        end
-                    end
-                end
-            end
-            -- Dodge local enemies
-            -- TODO
-            PROFILER:Add("AssaultControlThread",PROFILER:Now()-start)
-            WaitTicks(10)
-            start = PROFILER:Now()
         end
     end,
 
@@ -559,22 +605,16 @@ LandGroup = Class({
         end
     end,
 
-    IntelCheck = function(self)
-        if self.targetZone then
-            local myPos = self:Position()
-            local nextPos = self.controller:BiasLocation(myPos,self.targetZone.pos,math.min(20,VDist3(myPos,self.targetZone.pos)))
-            local threat = self:DangerAt(nextPos,40)
-            self.threat = self.brain.intel:GetLandThreat(self.units)
-            self.localThreat = threat.threat
-            self.localSupport = math.max(self.brain.intel:GetLandThreat(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,myPos,40,'Ally')),
-                                         self.brain.intel:GetLandThreat(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,nextPos,60,'Ally'))/1.5)
-            self.localThreatPos = threat.pos
-            if (self.zoneThreatAge >= 10) or (self.zoneThreat < self.targetZone.control.land.enemy) then
-                self.zoneThreatAge = 0
-                self.zoneThreat = self.targetZone.control.land.enemy
-            else
-                self.zoneThreatAge = self.zoneThreatAge + 1
-            end
+    IntelCheck = function(self,myPos)
+        local myPos = self:Position()
+        local threat = self:DangerAt(myPos,40)
+        self.threat = self.brain.intel:GetLandThreat(self.units)
+        self.localThreat = threat.threat
+        self.localThreatPos = threat.pos
+        self.localSupport = math.max(self.brain.intel:GetLandThreat(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,myPos,40,'Ally')),
+                                     self.brain.intel:GetLandThreat(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,myPos,60,'Ally'))/1.5)
+        if self.acu then
+            self.localSupport = self.localSupport - 15
         end
         self.collected = table.getn(self.units) > 2*table.getn(self.reinforcing)
     end,
@@ -583,6 +623,8 @@ LandGroup = Class({
         -- Add unit, issue initial orders
         if EntityCategoryContains(categories.SCOUT,unit) then
             self.scout = unit
+        elseif EntityCategoryContains(categories.COMMAND,unit) then
+            self.acu = unit
         end
         table.insert(self.reinforcing,unit)
         self.size = self.size + 1
@@ -593,6 +635,9 @@ LandGroup = Class({
     end,
 
     Position = function(self)
+        if self.acu then
+            return table.copy(self.acu:GetPosition())
+        end
         local x = 0
         local z = 0
         local n = 0
@@ -635,12 +680,10 @@ LandGroup = Class({
                     i = i+1
                 end
             end
-            if (not self.attacking) and self.stagingZone then
+            -- Newly arrived units should be ordered to the right place
+            if self.lastPos then
                 IssueClearCommands(moved)
-                IssueMove(moved,self.stagingZone.pos)
-            elseif self.attacking and self.targetZone then
-                IssueClearCommands(moved)
-                IssueMove(moved,self.targetZone.pos)
+                IssueMove(moved,self.lastPos)
             end
             local newPos = self:Position()
             -- IssueMove reinforcing to new position
@@ -685,7 +728,7 @@ LandGroup = Class({
 
     Run = function(self)
         self:ForkThread(self.AssaultControlThread)
-        self:ForkThread(self.AssaultDebuggingThread)
+        --self:ForkThread(self.AssaultDebuggingThread)
     end,
 
     ForkThread = function(self, fn, ...)
@@ -754,6 +797,7 @@ AirController = Class({
 
     ScoutingThread = function(self,scout)
         local targetZone
+        self.brain.intel.controlSpreadSpeed = 0
         while scout and (not scout.Dead) do
             local myPos = scout:GetPosition()
             if (not targetZone) or (VDist2(myPos[1],myPos[3],targetZone.pos[1],targetZone.pos[3]) < 30) or scout:IsIdleState() then

@@ -5,7 +5,7 @@ Profiler = Class({
         self.Trash = TrashBag()
         self.last = 0
         self.times = {}
-        self.period = 5 -- How many ticks to wait before logging again
+        self.period = 5 -- How many seconds to wait before logging again
         self.adjust = 1/self.period
     end,
 
@@ -34,7 +34,7 @@ Profiler = Class({
             while (i < 5) and (pq:Size() > 0) do
                 i = i+1
                 local item = pq:Dequeue()
-                -- Logs Percet Total Time
+                -- Logs Percent Total Time
                 s = s..item.k.."-"..string.format("%.2f",100*self.adjust*(-item.priority)/timePerGameSecond).."%, "
             end
             LOG(s)
