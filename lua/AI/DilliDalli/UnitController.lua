@@ -496,8 +496,8 @@ LandGroup = Class({
         end
     end,
 
-    GetRandomMoveLoc = function(self,pos)
-        return {pos[1]+Random(-3,3),pos[2],pos[3]+Random(-3,3)}
+    GetRandomMoveLoc = function(self,pos,n)
+        return {pos[1]+Random(-n,n),pos[2],pos[3]+Random(-n,n)}
     end,
 
     RetreatFunction = function(self, t, myPos)
@@ -510,7 +510,7 @@ LandGroup = Class({
         local retreatPos = self.controller:BiasLocation(myPos,self.localThreatPos,-20)
         if VDist3(retreatPos,self.lastPos) > 7 then
             IssueClearCommands(self.units)
-            IssueMove(self.units,self:GetRandomMoveLoc(retreatPos))
+            IssueMove(self.units,self:GetRandomMoveLoc(retreatPos,3))
             self.lastPos = table.copy(retreatPos)
         end
         return 0
@@ -543,7 +543,7 @@ LandGroup = Class({
             if self.attacking and self.targetZone then
                 if VDist3(self.lastPos,self.targetZone.pos) > 10 then
                     IssueClearCommands(self.units)
-                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos))
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos,3))
                     self.lastPos = table.copy(self.targetZone.pos)
                 elseif (math.mod(t,5) == 0) and VDist3(myPos, self.targetZone.pos) < 10 then
                     IssueClearCommands(self.units)

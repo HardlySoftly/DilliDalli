@@ -398,14 +398,14 @@ LandProduction = Class({
             if self.brain.monitor.units.land.count.total < 20 then
                 self.t1TankJob.targetSpend = actualMass
             elseif self.brain.monitor.units.land.count.t2+self.brain.monitor.units.land.count.t3 < 10 then
-                self.t1TankJob.targetSpend = actualMass*0.7
-                self.t1ArtyJob.targetSpend = actualMass*0.3
+                self.t1TankJob.targetSpend = actualMass*0.85
+                self.t1ArtyJob.targetSpend = actualMass*0.15
             elseif self.brain.monitor.units.land.mass.total < 5000 then
                 self.t1TankJob.targetSpend = actualMass*0.8
                 self.t1ArtyJob.targetSpend = actualMass*0.2
             else
-                self.t1TankJob.targetSpend = actualMass*0.5
-                self.t1ArtyJob.targetSpend = actualMass*0.5
+                self.t1TankJob.targetSpend = actualMass*0.7
+                self.t1ArtyJob.targetSpend = actualMass*0.3
             end
         end
         massRemaining = math.max(0,massRemaining - t1Spend)
