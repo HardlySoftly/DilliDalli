@@ -86,7 +86,7 @@ BaseController = Class({
                         index = k
                     end
                 end
-                if not (index == 0) then
+                if index ~= 0 then
                     table.remove(job.meta.assisting,index)
                 else
                     WARN("BaseController: Unable to complete assist! (mobile) "..tostring(thread)..", "..tostring(jobID))
@@ -150,7 +150,7 @@ BaseController = Class({
                 -- Complete assisting engies
                 for k, v in job.meta.assisting do
                     if v.thread == threadID then
-                        if v.unit and not v.unit.Dead then
+                        if v.unit and (not v.unit.Dead) then
                             v.unit.CustomData.assistComplete = true
                         end
                     end
@@ -169,7 +169,7 @@ BaseController = Class({
                 WARN("BaseController: Repeated Job failure, removing: "..tostring(jobs[index].job.work))
                 table.remove(jobs,index)
             end
-        elseif not index then
+        elseif (not index) then
             WARN("BaseController: Unable to complete job!")
         end
     end,
@@ -181,7 +181,7 @@ BaseController = Class({
             if v.thread == assist.thread then
                 job.meta.spend = job.meta.spend + buildRate*v.bp.Economy.BuildCostMass/v.bp.Economy.BuildTime
                 -- Set a flag to tell everyone this engie is busy
-                if not engie.CustomData then
+                if (not engie.CustomData) then
                     engie.CustomData = {}
                 end
                 engie.CustomData.isAssigned = true
@@ -199,7 +199,7 @@ BaseController = Class({
         job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
         -- Set a flag to tell everyone this unit is busy
-        if not unit.CustomData then
+        if (not unit.CustomData) then
             unit.CustomData = {}
         end
         unit.CustomData.isAssigned = true
@@ -250,7 +250,7 @@ BaseController = Class({
                 activeJob = nil
             end
         end
-        if engie and not engie.Dead then
+        if engie and (not engie.Dead) then
             engie.CustomData.isAssigned = false
         end
         PROFILER:Add("RunMobileJobThread",PROFILER:Now()-start)
@@ -340,7 +340,7 @@ BaseController = Class({
         job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
         -- Exclude this unit from additional jobs, so we can reserve it for an upgrade.  Pertinent for factories.
-        if not unit.CustomData then
+        if (not unit.CustomData) then
             unit.CustomData = {}
         end
         unit.CustomData.excludeAssignment = true
@@ -349,14 +349,14 @@ BaseController = Class({
     end,
 
     FindAssistInRadius = function(self,engie,job,radius)
-        if not job.job.assist or not job.meta.assigned then
+        if (not job.job.assist) or (not job.meta.assigned) then
             return nil
         end
         local best
         local myPos = engie:GetPosition()
         for _, v in job.meta.assigned do
             local theirPos = v.unit:GetPosition()
-            if MAP:CanPathTo(myPos,theirPos,"surf") and VDist3(myPos,theirPos) < self.assistRadius and not v.unit:IsBeingBuilt() then
+            if MAP:CanPathTo(myPos,theirPos,"surf") and (VDist3(myPos,theirPos) < self.assistRadius) and (not v.unit:IsBeingBuilt()) then
                 return { unit = v.unit, thread = v.thread }
             end
         end
@@ -366,13 +366,13 @@ BaseController = Class({
         -- Used for both Engineers and Factories
         -- Check if there is an available and pathable resource marker for restrictive thingies
         if (job.job.work == "MexT1" or job.job.work == "MexT2" or job.job.work == "MexT3") then
-            if not self.brain.intel:EmptyMassMarkerExists(unit:GetPosition()) then
+            if (not self.brain.intel:EmptyMassMarkerExists(unit:GetPosition())) then
                 return false
             elseif (not EntityCategoryContains(categories.TECH1,unit)) and self.isBOComplete then
                 return false
             end
         elseif job.job.work == "Hydro" then
-            if not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon") then
+            if (not self.brain.intel:FindNearestEmptyMarker(unit:GetPosition(),"Hydrocarbon")) then
                 return false
             elseif (not EntityCategoryContains(categories.TECH1,unit)) and self.isBOComplete then
                 return false
@@ -383,7 +383,7 @@ BaseController = Class({
         if job.job.priority <= 0 or job.job.count <= 0 or job.job.targetSpend < 0 then
             return false
         end
-        if job.job.com and not EntityCategoryContains(categories.COMMAND,unit) then
+        if job.job.com and (not EntityCategoryContains(categories.COMMAND,unit)) then
             -- We're still allowed to assist, just not start it
             return job.meta.spend < job.job.targetSpend and job.job.assist and self:FindAssistInRadius(unit,job,self.assistRadius)
         end
@@ -392,8 +392,8 @@ BaseController = Class({
         return (
             job.meta.spend < job.job.targetSpend and (
                 (
-                    job.meta.activeCount < job.job.duplicates
-                    and job.meta.activeCount < job.job.count
+                    (job.meta.activeCount < job.job.duplicates)
+                    and (job.meta.activeCount < job.job.count)
                     and unit:CanBuild(Translation[job.job.work][unit.factionCategory])
                 ) or (
                     job.job.assist and self:FindAssistInRadius(unit,job,self.assistRadius)
@@ -404,13 +404,13 @@ BaseController = Class({
     CheckPriority = function(self, currentJob, newJob)
         -- Return true if the new job should be higher priority than the old job.
         -- Check the old one is actually set yet
-        if not currentJob then
+        if (not currentJob) then
             return newJob.job.priority > 0
         end
         -- Check if one is a build order, in which case prioritise it.
-        if currentJob.job.buildOrder and not newJob.job.buildOrder then
+        if currentJob.job.buildOrder and (not newJob.job.buildOrder) then
             return false
-        elseif newJob.job.buildOrder and not currentJob.job.buildOrder then
+        elseif newJob.job.buildOrder and (not currentJob.job.buildOrder) then
             return true
         end
         -- Check if one has a higher priority field
@@ -551,7 +551,7 @@ BaseController = Class({
 
     MonitorBOCompletion = function(self)
         local isComplete = false
-        while self.brain:IsAlive() and not isComplete do
+        while self.brain:IsAlive() and (not isComplete) do
             isComplete = true
             for _, v in self.mobileJobs do
                 if v.job.buildOrder then
@@ -584,7 +584,7 @@ BaseController = Class({
             LOG("Assisting builders: "..tostring(numAssisting))
             LOG("Total Jobs: "..tostring(table.getn(self.mobileJobs)+table.getn(self.factoryJobs)+table.getn(self.upgradeJobs)))
             LOG("Pending Structures: "..tostring(table.getn(self.pendingStructures)))
-            WaitTicks(200)
+            WaitTicks(50)
         end
     end,
 
@@ -662,7 +662,7 @@ BaseController = Class({
                 index = k
             end
         end
-        if not (index == 0) then
+        if index ~= 0 then
             table.remove(self.pendingStructures,index)
         else
             WARN("BaseController: No pending structure found! ("..tostring(id)..")")

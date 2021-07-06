@@ -91,8 +91,10 @@ IntelManager = Class({
         else
             if self:FindNearestEmptyMarker(pos,"Mass") then
                 self.mme[component] = { exists = true }
+                return true
             else
                 self.mme[component] = { exists = false }
+                return false
             end
         end
     end,
@@ -106,9 +108,9 @@ IntelManager = Class({
         for _, v in markers do
             if v.type == t then
                 local dist = VDist3(pos,v.position)
-                if dist < best and self:CanBuildOnMarker(v.position,bp)
-                               and MAP:CanPathTo(pos,v.position,"surf")
-                               and self.brain.base:LocationIsClear(v.position,bp) then
+                if (dist < best) and self:CanBuildOnMarker(v.position,bp)
+                                 and MAP:CanPathTo(pos,v.position,"surf")
+                                 and self.brain.base:LocationIsClear(v.position,bp) then
                     best = dist
                     bestMarker = v
                 end
@@ -196,7 +198,7 @@ IntelManager = Class({
         end
         local threat = 0
         if EntityCategoryContains(categories.COMMAND,unit) then
-            threat = 20
+            threat = 15
         elseif EntityCategoryContains(categories.STRUCTURE,unit) then
             threat = 0.01
             if EntityCategoryContains(categories.DIRECTFIRE,unit) then
@@ -409,7 +411,7 @@ IntelManager = Class({
 
     Run = function(self)
         self:ForkThread(self.MapMonitoringThread)
-        self:ForkThread(self.MapDrawingThread)
+        --self:ForkThread(self.MapDrawingThread)
         self:ForkThread(self.CacheClearThread)
     end,
 

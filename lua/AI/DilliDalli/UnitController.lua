@@ -270,7 +270,7 @@ LandController = Class({
             self:CheckGroups()
             local units = self.brain.aiBrain:GetListOfUnits(categories.LAND * categories.MOBILE - categories.ENGINEER,false,true)
             local numUnits = table.getn(units)
-            local targetNumberOfGroups = math.min(math.sqrt(numUnits) + 1,self.brain.intel:NumLandAssaultZones())
+            local targetNumberOfGroups = math.min(math.log(math.max(numUnits-2,1)) + 2,self.brain.intel:NumLandAssaultZones())
             local numGroups = table.getn(self.groups)
             for _, unit in units do
                 if not unit.CustomData then
@@ -503,7 +503,7 @@ LandGroup = Class({
     RetreatFunction = function(self, t, myPos)
         -- Am I still within the necessary parameters for this state?
         if (t > 0) then
-            if (not self.localThreatPos) or (self.localSupport > self.localThreat*1.2) then
+            if (not self.localThreatPos) or (self.localSupport > self.localThreat*1.0) then
                 return LandGroup.ZONEATTACK
             end
         end
@@ -517,7 +517,7 @@ LandGroup = Class({
     end,
     ZoneAttackFunction = function(self, t, myPos)
         if (t > 0) then
-            if (self.localSupport < self.localThreat*1.0) then
+            if (self.localSupport < self.localThreat*0.8) then
                 return LandGroup.RETREAT
             end
         end
@@ -526,11 +526,11 @@ LandGroup = Class({
                 self.attacking = (self.localSupport*self.confidence >= self.targetZone.intel.threat.land.enemy)
                 if self.attacking then
                     IssueClearCommands(self.units)
-                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos))
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos,3))
                     self.lastPos = table.copy(self.targetZone.pos)
                 else
                     IssueClearCommands(self.units)
-                    IssueMove(self.units,self:GetRandomMoveLoc(self.stagingZone.pos))
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.stagingZone.pos,3))
                     self.lastPos = table.copy(self.stagingZone.pos)
                 end
             end
@@ -545,12 +545,18 @@ LandGroup = Class({
                     IssueClearCommands(self.units)
                     IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos))
                     self.lastPos = table.copy(self.targetZone.pos)
+                elseif (math.mod(t,5) == 0) and VDist3(myPos, self.targetZone.pos) < 10 then
+                    IssueClearCommands(self.units)
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos,8))
                 end
             elseif self.stagingZone then
                 if VDist3(self.lastPos,self.stagingZone.pos) > 10 then
                     IssueClearCommands(self.units)
-                    IssueMove(self.units,self:GetRandomMoveLoc(self.stagingZone.pos))
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.stagingZone.pos,3))
                     self.lastPos = table.copy(self.stagingZone.pos)
+                elseif (math.mod(t,5) == 0) and VDist3(myPos, self.stagingZone.pos) < 10 then
+                    IssueClearCommands(self.units)
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.stagingZone.pos,8))
                 end
             end
         end

@@ -155,7 +155,7 @@ BaseProduction = Class({
         local massRemaining = mass - self.t1EngieJob.actualSpend
         local availableMex = self.brain.intel:GetNumAvailableMassPoints()
         self.mexJob.duplicates = availableMex/2
-        local engiesRequired = math.max(4+math.min(10,availableMex/2),massRemaining/2)-self.brain.monitor.units.engies.t1
+        local engiesRequired = 1+math.min(3,math.log(availableMex+1))*math.sqrt(mass)-self.brain.monitor.units.engies.t1
         -- Drop out early if we're still doing our build order
         if not self.brain.base.isBOComplete then
             self.t1EngieJob.count = engiesRequired
@@ -229,7 +229,7 @@ LandProduction = Class({
         -- Base zone
         self.baseZone = self.brain.intel:FindZone(self.brain.intel.allies[1])
         -- T1 jobs
-        self.t1ScoutJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = JOB_INF, targetSpend = 0, work = "LandScoutT1", keep = true, priority = HIGH })
+        self.t1ScoutJob = self.brain.base:CreateGenericJob({ duplicates = 1, count = 0, targetSpend = 5, work = "LandScoutT1", keep = true, priority = HIGH })
         self.brain.base:AddFactoryJob(self.t1ScoutJob)
         self.t1TankJob = self.brain.base:CreateGenericJob({ duplicates = JOB_INF, count = JOB_INF, targetSpend = 0, work = "DirectFireT1", keep = true, priority = NORMAL })
         self.brain.base:AddFactoryJob(self.t1TankJob)
@@ -380,7 +380,7 @@ LandProduction = Class({
             self.t2MMLJob.targetSpend = 0
             if self.brain.monitor.units.land.count.t2 < 20 then
                 self.t2TankJob.targetSpend = actualMass * 0.8
-                self.t2AAJob.targetSpend = actualMass * 0.2
+                self.t2AAJob.targetSpend = actualMass * 0.1
             else
                 self.t2TankJob.targetSpend = actualMass * 0.9
                 self.t2AAJob.targetSpend = actualMass * 0.1
@@ -391,13 +391,10 @@ LandProduction = Class({
         if true then
             -- T1 spend
             local actualMass = massRemaining*1.2
-            self.t1ScoutJob.targetSpend = 0
+            self.t1ScoutJob.count = table.getn(self.brain.army.land.groups) - self.brain.monitor.units.land.count.scout
             self.t1TankJob.targetSpend = 0
             self.t1ArtyJob.targetSpend = 0
             self.t1AAJob.targetSpend = 0
-            if (self.brain.monitor.units.land.count.total > 0) and (self.brain.monitor.units.land.count.scout < 0.1 + math.log(self.brain.monitor.units.land.count.total)) then
-                self.t1ScoutJob.targetSpend = 5
-            end
             if self.brain.monitor.units.land.count.total < 20 then
                 self.t1TankJob.targetSpend = actualMass
             elseif self.brain.monitor.units.land.count.t2+self.brain.monitor.units.land.count.t3 < 10 then
@@ -416,7 +413,7 @@ LandProduction = Class({
         -- Upgrade jobs to high/critical priority if there's an urgent need for them (4)
         -- T1 tanks early game
         -- AA if being bombed
-        if (self.brain.monitor.units.land.count.total < 30) and (((self.brain.monitor.units.engies.t1 - 1) * 2) > self.brain.monitor.units.land.count.total) then
+        if (self.brain.monitor.units.land.count.total < 30) and (((self.brain.monitor.units.engies.t1 - 1) * 1.5) > self.brain.monitor.units.land.count.total - self.brain.monitor.units.land.count.scout) then
             self.t1TankJob.priority = HIGH
             self.t1ArtyJob.priority = HIGH
         else
@@ -424,9 +421,9 @@ LandProduction = Class({
             self.t1ArtyJob.priority = NORMAL
         end
         if self.baseZone.intel.threat.air.enemy < 0.5 then
-            self.t3AAJob.priority = NORMAL
+            self.t3AAJob.priority = NORMAL+1
             self.t2AAJob.priority = NORMAL
-            self.t1AAJob.priority = NORMAL
+            self.t1AAJob.priority = NORMAL-1
         else
             self.t3AAJob.priority = CRITICAL
             self.t3AAJob.targetSpend = math.max(10,self.t3AAJob.targetSpend)
