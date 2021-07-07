@@ -75,7 +75,48 @@ BaseController = Class({
         table.insert(self.upgradeJobs, { job = job, meta=meta })
         return meta
     end,
-
+    AddCategoryJob = function(self,category,job,data)
+        if not self.categoryjobs then self.categoryjobs={} end
+        if not self.categoryjobs[category] then self.categoryjobs[category]={} end
+        table.insert(self.categoryjobs[category],{job=job,data=data})
+    end,
+    SumCategorySpend = function(self,category,tier)
+        local sum=0
+        for _,job in self.categoryjobs[category] do
+            if job.data.tier==tier then
+                sum=sum+job.job.actualSpend
+            end
+        end
+        return sum
+    end,
+    SumCategoryTarget = function(self,category,tier)
+        local sum=0
+        for _,job in self.categoryjobs[category] do
+            if job.data.tier==tier then
+                sum=sum+job.job.targetSpend
+            end
+        end
+        return sum
+    end,
+    ClearCategoryTarget = function(self,category)
+        for _,job in self.categoryjobs[category] do
+            job.job.targetSpend=0
+        end
+    end,
+    DoCategoryAllocate = function(self,category,tier,cond,amount)
+        local sumpriority=0
+        for _,job in self.categoryjobs[category] do
+            if job.data.condpriority[cond]>0 then
+                sumpriority=sumpriority+job.data.condpriority[cond]
+            end
+        end
+        for _,job in self.categoryjobs[category] do
+            if job.data.condpriority[cond]>0 then
+                job.job.targetSpend=job.data.condpriority[cond]*amount/sumpriority
+            end
+        end
+    end,
+    
     OnCompleteAssist = function(self,jobID,buildRate,thread)
         for _, job in self.mobileJobs do
             if job.meta.id == jobID then
