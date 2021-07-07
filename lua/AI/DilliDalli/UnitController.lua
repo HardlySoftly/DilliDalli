@@ -308,6 +308,11 @@ LandController = Class({
     end,
 
     BiasLocation = function(self,pos,target,dist)
+        if not target then
+            return pos
+        elseif not pos then
+            return target
+        end
         local delta = VDiff(target,pos)
         local norm = math.max(VDist2(delta[1],delta[3],0,0),1)
         local x = pos[1]+dist*delta[1]/norm
@@ -339,7 +344,10 @@ LandController = Class({
                     local d0 = VDist3(self.brain.intel.allies[1],v.pos)
                     local d1 = VDist3(self.brain.intel.enemies[1],v.pos)
                     local metric = v.weight/(100+math.abs(d0-1.5*d1))
-                    if (not best) or metric > bestMetric then
+                    if d1 < 75 then
+                        continue
+                    end
+                    if (not best) or (metric > bestMetric) then
                         best = v.pos
                         bestMetric = metric
                     end
@@ -618,7 +626,7 @@ LandGroup = Class({
         self.localThreat = threat.threat
         self.localThreatPos = threat.pos
         self.localSupport = math.max(self.brain.intel:GetLandThreat(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,myPos,40,'Ally')),
-                                     self.brain.intel:GetLandThreat(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,myPos,60,'Ally'))/1.5)
+                                     self.brain.intel:GetLandThreat(self.brain.aiBrain:GetUnitsAroundPoint(categories.ALLUNITS-categories.WALL,myPos,70,'Ally'))/1.5)
         if self.acu then
             self.localSupport = self.localSupport - 15
         end
