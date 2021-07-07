@@ -78,17 +78,25 @@ ProductionManager = Class({
         -- Tune up allocations based on mass storage (0.85 when empty, 1.8 when full)
         local storageModifier = 0.85 + 1*self.brain.aiBrain:GetEconomyStoredRatio('MASS')
         local availableMass = self.brain.monitor.mass.income*storageModifier
-        local section0 = math.min(5,availableMass)
-        local section1 = math.min(10,availableMass)-section0
-        local section2 = math.min(30,availableMass)-section0-section1
-        local section3 = math.min(90,availableMass)-section0-section1-section2
-        local section4 = availableMass-section0-section1-section2-section3
-        -- Base allocation
-        self.allocations[1].mass = section0 + 0.1*section1 + 0.1*section2 + 0.3*section3 + 0.4*section4
-        -- Land allocation
-        self.allocations[2].mass = section1*0.9 + section2*0.8 + section3*0.65 + section4*0.6
-        -- Air allocation
-        self.allocations[3].mass = section2*0.1 + section3*0.05
+        local resourceSections = {5,5,20,60,JOB_INF} --Divide income into five sections- first 5 mass, next 5 mass, next 20 mass, next 60 mass, the rest
+        local typeSections = {--What amount each type will spend of each of the 5 sections
+            {1, 0.1, 0.1, 0.3, 0.4},--base
+            {0, 0.9, 0.8, 0.65, 0.6},--land
+            {0, 0, 0.1, 0.05, 0},--air
+        }
+        local alreadySpent = 0
+        local sectionMass = {}
+        for k,v in resourceSections do--Use resourceSections as a guide to divy up the income into segments
+            sectionMass[k]=math.min(v,availableMass-alreadySpent)--The amount each section can take is At Most the value it has- but if we have less mass than the max, we use that instead
+            alreadySpent=alreadySpent+sectionMass[k]
+        end
+        for k,v in typeSections do
+            local sum=0
+            for i,j in sectionMass do--Multiply the typeSection ratios against the income segments and then sum them to get the spend by category
+                sum=sum+j*v[i]
+            end
+            self.allocations[k].mass=sum
+        end
     end,
 
     ForkThread = function(self, fn, ...)
