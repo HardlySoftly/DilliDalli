@@ -174,6 +174,13 @@ translate = {
         SERAPHIM = "xsl0202",
         NOMADS = "xnl0202",
     },
+    RangedT2 = {
+        AEON = "xal0203",
+        UEF = "del0204",
+        CYBRAN = "drl0204",
+        SERAPHIM = "xsl0202",
+        NOMADS = "xnl0306",
+    },
     AmphibiousT2 = {
         AEON = "xal0203",
         UEF = "uel0203",
@@ -201,6 +208,13 @@ translate = {
         CYBRAN = "url0303",
         SERAPHIM = "xsl0303",
         NOMADS = "xnl0303",
+    },
+    RangedT3 = {
+        AEON = "xal0305",
+        UEF = "xel0305",
+        CYBRAN = "xrl0305",
+        SERAPHIM = "xsl0305",
+        NOMADS = "xnl0305",
     },
     HeavyLandT3 = {
         AEON = "ual0303",
