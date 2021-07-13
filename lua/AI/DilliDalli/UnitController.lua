@@ -334,16 +334,19 @@ LandController = Class({
                 target = nil
             end
             if self.brain.monitor.units.land.mass.total > 2500 then
-                target = self:BiasLocation(self.brain.intel.allies[1],self.brain.intel.enemies[1],10)
+                target = self:BiasLocation(self.brain.intel.spawn,self.brain.intel.enemies[1],10)
                 scared = true
             end
             if not target then
                 local best
                 local bestMetric = 0
                 for _, v in self.brain.intel.zones do
-                    local d0 = VDist3(self.brain.intel.allies[1],v.pos)
-                    local d1 = VDist3(self.brain.intel.enemies[1],v.pos)
-                    local metric = v.weight/(100+math.abs(d0-1.5*d1))
+                    local d0 = VDist3(self.brain.intel.spawn,v.pos)
+                    local d1 = 100000000
+                    for _, e in self.brain.intel.enemies do
+                        d1 = math.min(VDist3(e,v.pos),d1)
+                    end
+                    local metric = v.weight/(100+math.abs(d0-0.75*d1))
                     if d1 < 75 then
                         continue
                     end
