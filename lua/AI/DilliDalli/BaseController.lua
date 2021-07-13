@@ -58,18 +58,30 @@ BaseController = Class({
     end,
 
     AddMobileJob = function(self,job)
+        if not Translation[job.work] then
+            WARN("Unable to translate, ignoring: "..tostring(job.work))
+            return nil
+        end
         local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="mobile" }
         self.jobID = self.jobID + 1
         table.insert(self.mobileJobs, { job = job, meta=meta })
         return meta
     end,
     AddFactoryJob = function(self,job)
+        if not Translation[job.work] then
+            WARN("Unable to translate, ignoring: "..tostring(job.work))
+            return nil
+        end
         local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="factory" }
         self.jobID = self.jobID + 1
         table.insert(self.factoryJobs, { job = job, meta=meta })
         return meta
     end,
     AddUpgradeJob = function(self,job)
+        if not Translation[job.work] then
+            WARN("Unable to translate, ignoring: "..tostring(job.work))
+            return nil
+        end
         local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="upgrade" }
         self.jobID = self.jobID + 1
         table.insert(self.upgradeJobs, { job = job, meta=meta })
