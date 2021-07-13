@@ -3,6 +3,7 @@ local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
 local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
 local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local MYMARKERS = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS
 
 -- Zone classes
 local ALLIED = "allied"
@@ -100,7 +101,7 @@ IntelManager = Class({
     end,
     FindNearestEmptyMarker = function(self,pos,t)
         local start = PROFILER:Now()
-        local markers = ScenarioUtils.GetMarkers()
+        local markers = MYMARKERS
         local best = 1000000
         local bestMarker = nil
         local bp = self.brain.aiBrain:GetUnitBlueprint('uab1103')
@@ -150,7 +151,7 @@ IntelManager = Class({
             return self.massNumCached
         end
         local num = 0
-        local markers = ScenarioUtils.GetMarkers()
+        local markers = MYMARKERS
         for _, v in markers do
             if v.type == "Mass" and self:CanBuildOnMarker(v.position) then
                 num = num + 1

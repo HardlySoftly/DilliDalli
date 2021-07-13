@@ -1,4 +1,3 @@
-local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
 local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
 local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
 

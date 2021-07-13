@@ -1,4 +1,3 @@
-local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
 local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
 
@@ -319,7 +318,7 @@ GameMap = Class({
         self.zones = {}
         local massPoints = {}
         local zoneID = 1
-        for _, v in ScenarioUtils.GetMarkers() do
+        for _, v in MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS do
             if v.type == "Mass" or v.type == "Hydrocarbon" then
                 table.insert(massPoints, { pos=v.position, claimed = false, weight = 1, aggX = v.position[1], aggZ = v.position[3] })
             end
@@ -565,3 +564,10 @@ end
 function GetMap()
     return map
 end
+
+MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS = {}
+
+function CreateMarker(t,x,y,z,size)
+    table.insert(MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS,{type=t,position={x,y,z}})
+end
+
