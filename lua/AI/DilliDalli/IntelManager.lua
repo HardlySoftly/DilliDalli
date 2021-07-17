@@ -16,7 +16,7 @@ IntelManager = Class({
         self.brain = brain
         self.centre = {ScenarioInfo.size[1],0,ScenarioInfo.size[2]}
         self.threatTable = { land = {}, air = {} }
-        self.zoneRadius = 40
+        self.zoneRadius = 35
         self.controlSpreadSpeed = 1.4
 
         self:LoadMapMarkers()
@@ -336,7 +336,9 @@ IntelManager = Class({
     NumLandAssaultZones = function(self)
         local num = 0
         for _, z in self.zones do
-            if z.intel.class == CONTESTED or z.intel.class == ENEMY then
+            if z.intel.class == CONTESTED then
+                num = num + 1
+            elseif z.intel.class == ENEMY then
                 for _, e in z.edges do
                     if e.zone.intel.class == NEUTRAL or e.zone.intel.class == ALLIED then
                         num = num+1

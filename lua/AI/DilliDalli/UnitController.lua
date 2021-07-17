@@ -30,6 +30,7 @@ LandController = Class({
         self.groups = {}
         self.groupID = 1
 
+        self.maintainTargetBias = 1.5
         self.rematch = false
     end,
 
@@ -89,7 +90,7 @@ LandController = Class({
                 local zones = {}
                 for _, z in self.brain.intel.zones do
                     if (z.intel.class == "enemy") or (z.intel.class == "contested") then
-                        local retreatEdge = false
+                        local retreatEdge = (z.intel.class == "contested")
                         for _, e in z.edges do
                             if (e.zone.intel.class == "neutral") or (e.zone.intel.class == "allied") then
                                 retreatEdge = true
@@ -109,7 +110,7 @@ LandController = Class({
                 local groups = {}
                 for _, g in self.groups do
                     if g:Size() > 0 then
-                        table.insert(groups,{group = g, pos = g:Position(), assigned = false})
+                        table.insert(groups,{group = g, pos = g:Position(), assigned = false, old = g.targetZone})
                     end
                 end
                 -- Now insert the scores
@@ -117,8 +118,13 @@ LandController = Class({
                 for _, z in zones do
                     for _, g in groups do
                         -- Higher is better
-                        local s = VDist3(g.pos,z.zone.pos)/(g.group:Size()*(z.zone.weight+z.zone.intel.importance.enemy))
-                        scoreQueue:Queue({ zone = z, group = g, priority = s})
+                        if MAP:CanPathTo(g.pos,z.zone.pos,"surf") then
+                            local s = VDist3(g.pos,z.zone.pos)/(g.group:Size()*(z.zone.weight+z.zone.intel.importance.enemy))
+                            if g.targetZone.id == z.zone.id then
+                                s = s*self.maintainTargetBias
+                            end
+                            scoreQueue:Queue({ zone = z, group = g, priority = s})
+                        end
                     end
                 end
                 local m = table.getn(zones)
@@ -134,8 +140,8 @@ LandController = Class({
                         item.zone.assigned = true
                         item.group.group.targetZone = item.zone.zone
                         -- Find a staging zone
-                        local bestStaging
-                        local bestDistance = 0
+                        local bestStaging = item.zone.zone
+                        local bestDistance = 1000000
                         for _, e in item.zone.zone.edges do
                             if (e.zone.intel.class == "allied") or (e.zone.intel.class == "neutral") then
                                 local d = VDist3(self.brain.intel.spawn,e.zone.pos)
@@ -558,7 +564,7 @@ LandGroup = Class({
                     self.lastPos = table.copy(self.targetZone.pos)
                 elseif (math.mod(t,5) == 0) and VDist3(myPos, self.targetZone.pos) < 10 then
                     IssueClearCommands(self.units)
-                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos,8))
+                    IssueMove(self.units,self:GetRandomMoveLoc(self.targetZone.pos,15))
                 end
             elseif self.stagingZone then
                 if VDist3(self.lastPos,self.stagingZone.pos) > 10 then
@@ -841,9 +847,10 @@ AirController = Class({
     AirControlThread = function(self)
         while self.brain:IsAlive() do
             self:CheckGroups()
+            --LOG("Air Controller - num groups: "..tostring(table.getn(self.groups)))
             local units = self.brain.aiBrain:GetListOfUnits(categories.AIR * categories.MOBILE - categories.ENGINEER,false,true)
             local numUnits = table.getn(units)
-            local targetNumberOfGroups = 1 + math.floor((math.sqrt(numUnits/10))+0.1)
+            local targetNumberOfGroups = math.max(2*math.log(math.max(numUnits-3,1)),1)
             local numGroups = table.getn(self.groups)
             for _, unit in units do
                 if not unit.CustomData then
@@ -853,8 +860,7 @@ AirController = Class({
                     unit.CustomData.airAssigned = true
                     if EntityCategoryContains(categories.SCOUT,unit) then
                         self:ForkThread(self.ScoutingThread,unit)
-                    end
-                    if numGroups < targetNumberOfGroups then
+                    elseif numGroups < targetNumberOfGroups then
                         -- Create group
                         self:CreateGroup(unit)
                         numGroups = numGroups + 1
@@ -887,31 +893,32 @@ IntieGroup = Class({
 
         self.units = {}
         self.size = 0
+        self.targetZone = nil
     end,
 
     InterceptionThread = function(self)
-        local targetZone = nil
-        local waiting = false
         while self:Resize() > 0 do
-            if (not targetZone) or (self.units[1]:IsIdleState() and (not waiting)) or (targetZone.intel.threat.land.allied < targetZone.intel.threat.land.enemy) then
-                targetZone = nil
+            if (not self.targetZone) or self.units[1]:IsIdleState() or (self.targetZone.intel.threat.land.allied < self.targetZone.intel.threat.land.enemy) then
+                local oldZone = self.targetZone
+                self.targetZone = nil
                 local bestThreat = 0
                 local bestSafety = 0
                 for _, v in self.brain.intel.zones do
                     local r = Random(1,100)
-                    if (v.intel.threat.land.allied > v.intel.threat.land.enemy) and v.control.air.enemy > bestThreat then
-                        targetZone = v
+                    if v.id == oldZone.id then
+                        r = 100
+                    end
+                    if (v.intel.threat.land.allied > v.intel.threat.land.enemy) and v.intel.threat.air.enemy > bestThreat then
+                        self.targetZone = v
                         bestThreat = v.intel.threat.air.enemy
-                        waiting = false
                     elseif (bestThreat == 0) and (r > bestSafety) then
                         bestSafety = r
-                        targetZone = v
-                        waiting = true
+                        self.targetZone = v
                     end
                 end
-                if targetZone then
+                if self.targetZone and (self.targetZone.id ~= oldZone.id) then
                     IssueClearCommands(self.units)
-                    IssueAggressiveMove(self.units,targetZone.pos)
+                    IssueAggressiveMove(self.units,self.targetZone.pos)
                 end
             end
             WaitTicks(20)
@@ -921,6 +928,10 @@ IntieGroup = Class({
     Add = function(self,unit)
         table.insert(self.units,unit)
         self.size = self.size + 1
+        if self.targetZone then
+            IssueClearCommands({unit})
+            IssueAggressiveMove({unit},self.targetZone.pos)
+        end
     end,
 
     Run = function(self)

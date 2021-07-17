@@ -128,9 +128,9 @@ ProductionManager = Class({
         local availableMass = self.brain.monitor.mass.income*storageModifier
         local resourceSections = {5,5,20,60,JOB_INF} --Divide income into five sections- first 5 mass, next 5 mass, next 20 mass, next 60 mass, the rest
         local typeSections = {--What amount each type will spend of each of the 5 sections
-            {1, 0.1, 0.1, 0.3, 0.4},--base
-            {0, 0.9, 0.8, 0.65, 0.6},--land
-            {0, 0, 0.1, 0.05, 0},--air
+            {1, 0.1, 0.15, 0.3, 0.35},--base
+            {0, 0.9, 0.75, 0.65, 0.6},--land
+            {0, 0, 0.1, 0.05, 0.05},--air
         }
         local alreadySpent = 0
         local sectionMass = {}
@@ -402,16 +402,16 @@ LandProduction = Class({
         self.t3SupportJob.targetSpend = 0
         if (t3Spend < t3Target/1.2) and (self.brain.monitor.units.facs.land.idle.t3 == 0) then
             if self.brain.monitor.units.facs.land.total.t2 - self.brain.monitor.units.facs.land.hq.t2 > 0 then
-                self.t3SupportJob.targetSpend = (t3Target - t3Spend)/2
+                self.t3SupportJob.targetSpend = math.min((t3Target - t3Spend)/2,(t3Spend+t2Spend+t1Spend)/4)
             elseif self.brain.monitor.units.facs.land.total.t1 > 0 then
-                self.t2SupportJob.targetSpend = (t3Target - t3Spend)/2
+                self.t2SupportJob.targetSpend = math.min((t3Target - t3Spend)/2,(t3Spend+t2Spend+t1Spend-self.t3SupportJob.actualSpend)/4)
             else
                 self.facJob.targetSpend = t3Target - t3Spend
             end
         end
         if t2Spend < t2Target/1.2 and (self.brain.monitor.units.facs.land.idle.t2 == 0) then
             if self.brain.monitor.units.facs.land.total.t1 > 0 then
-                self.t2SupportJob.targetSpend = self.t2SupportJob.targetSpend + t2Target - t2Spend
+                self.t2SupportJob.targetSpend = self.t2SupportJob.targetSpend+ math.min((t2Target - t2Spend)/2,(t3Spend+t2Spend+t1Spend)/4)
             else
                 self.facJob.targetSpend = self.facJob.targetSpend + t2Target - t2Spend
             end
