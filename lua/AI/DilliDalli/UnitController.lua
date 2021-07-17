@@ -60,6 +60,9 @@ LandController = Class({
                     return
                 end
             end
+            -- Wait for a group that needs a scout
+            unit.CustomData.landAssigned = false
+            return
         end
         for _, v in self.groups do
             if (v.size == 0) or v.stop then
@@ -480,6 +483,8 @@ LandGroup = Class({
         end
         if (not self.scout) and (other.scout) then
             self.scout = other.scout
+        elseif other.scout then
+            other.scout.CustomData.landAssigned = false
         end
         if (not self.acu) and (other.acu) then
             self.acu = other.acu
@@ -586,6 +591,10 @@ LandGroup = Class({
         local t = 1
         while self:Resize() > 0 and not self.stop do
             local myPos = self:Reinforce()
+            if self.scout then
+                IssueClearCommands({self.scout})
+                IssueMove({self.scout},myPos)
+            end
             if not self.lastPos then
                 self.lastPos = table.copy(myPos)
             end
@@ -646,6 +655,8 @@ LandGroup = Class({
         -- Add unit, issue initial orders
         if EntityCategoryContains(categories.SCOUT,unit) then
             self.scout = unit
+            self.size = self.size + 1
+            return
         elseif EntityCategoryContains(categories.COMMAND,unit) then
             self.acu = unit
         end
@@ -741,6 +752,9 @@ LandGroup = Class({
             end
         end
         self.size = table.getn(self.units) + table.getn(self.reinforcing)
+        if self.scout then
+            self.size = self.size + 1
+        end
         return self.size
     end,
 
