@@ -272,6 +272,12 @@ IntelManager = Class({
                 zone.intel.importance.enemy = zone.intel.importance.enemy + 1
             end
         end
+        zone.intel.importance.ally = 0
+        for _, v in alliedUnits do
+            if EntityCategoryContains(categories.STRUCTURE, v) then
+                zone.intel.importance.ally = zone.intel.importance.ally + 1
+            end
+        end
     end,
     -- TODO: Assess threats in each zone
     ZoneThreat = function(self,zone,alliedUnits,enemyUnits)

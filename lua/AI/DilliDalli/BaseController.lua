@@ -408,7 +408,7 @@ BaseController = Class({
                     and (job.meta.activeCount < job.job.count)
                     and unit:CanBuild(Translation[job.job.work][unit.factionCategory])
                 ) or (
-                    job.job.assist and self:FindAssistInRadius(unit,job,self.assistRadius)
+                    (not EntityCategoryContains(categories.FACTORY,unit)) and job.job.assist and self:FindAssistInRadius(unit,job,self.assistRadius)
                 )
             )
         )

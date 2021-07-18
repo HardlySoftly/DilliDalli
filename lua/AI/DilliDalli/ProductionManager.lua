@@ -128,9 +128,9 @@ ProductionManager = Class({
         local availableMass = self.brain.monitor.mass.income*storageModifier
         local resourceSections = {5,5,20,60,JOB_INF} --Divide income into five sections- first 5 mass, next 5 mass, next 20 mass, next 60 mass, the rest
         local typeSections = {--What amount each type will spend of each of the 5 sections
-            {1, 0.1, 0.15, 0.3, 0.35},--base
-            {0, 0.9, 0.75, 0.65, 0.6},--land
-            {0, 0, 0.1, 0.05, 0.05},--air
+            {1, 0.1, 0.15, 0.25, 0.3},--base
+            {0, 0.9, 0.8, 0.7, 0.6},--land
+            {0, 0, 0.05, 0.05, 0.1},--air
         }
         local alreadySpent = 0
         local sectionMass = {}
@@ -400,7 +400,7 @@ LandProduction = Class({
         self.t2SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t1/4,math.max(self.brain.monitor.units.facs.land.total.t2/2,self.brain.monitor.units.facs.land.total.t3))
         self.t3SupportJob.duplicates = math.max(self.brain.monitor.units.facs.land.total.t2/4,self.brain.monitor.units.facs.land.total.t3/2)
         self.t3SupportJob.targetSpend = 0
-        if (t3Spend < t3Target/1.2) and (self.brain.monitor.units.facs.land.idle.t3 == 0) then
+        if (self.brain.monitor.units.facs.land.hq.t3 > 0) and (t3Spend < t3Target/1.2) and (self.brain.monitor.units.facs.land.idle.t3 == 0) then
             if self.brain.monitor.units.facs.land.total.t2 - self.brain.monitor.units.facs.land.hq.t2 > 0 then
                 self.t3SupportJob.targetSpend = math.min((t3Target - t3Spend)/2,(t3Spend+t2Spend+t1Spend)/4)
             elseif self.brain.monitor.units.facs.land.total.t1 > 0 then
@@ -409,7 +409,7 @@ LandProduction = Class({
                 self.facJob.targetSpend = t3Target - t3Spend
             end
         end
-        if t2Spend < t2Target/1.2 and (self.brain.monitor.units.facs.land.idle.t2 == 0) then
+        if self.brain.monitor.units.facs.land.hq.t2 > 0 and t2Spend < t2Target/1.2 and (self.brain.monitor.units.facs.land.idle.t2 == 0) then
             if self.brain.monitor.units.facs.land.total.t1 > 0 then
                 self.t2SupportJob.targetSpend = self.t2SupportJob.targetSpend+ math.min((t2Target - t2Spend)/2,(t3Spend+t2Spend+t1Spend)/4)
             else
@@ -426,7 +426,7 @@ LandProduction = Class({
         --    Remember Hi Pri tank decisions (for early game)
         if massRemaining > 100 and self.brain.monitor.units.engies.t3 > 0 then
             -- Time for an experimental
-            self.expJob.targetSpend = (massRemaining-50)*0.8
+            self.expJob.targetSpend = (massRemaining-50)*0.3
         else
             self.expJob.targetSpend = 0
         end
@@ -495,7 +495,7 @@ LandProduction = Class({
 
         if massRemaining > 0 and self.brain.base.isBOComplete
                              and self.brain.monitor.units.facs.land.idle.t1+self.brain.monitor.units.facs.land.idle.t2+self.brain.monitor.units.facs.land.idle.t3 == 0 then
-            self.facJob.targetSpend = self.facJob.targetSpend + massRemaining
+            self.facJob.targetSpend = math.max(self.facJob.targetSpend,(self.facJob.targetSpend + massRemaining)/2)
         end
     end,
 

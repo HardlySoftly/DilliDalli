@@ -64,11 +64,16 @@ LandController = Class({
             unit.CustomData.landAssigned = false
             return
         end
+        local unitPos = unit:GetPosition()
         for _, v in self.groups do
             if (v.size == 0) or v.stop then
                 continue
             end
-            local priority = (5+v.size)/(1+v.zoneThreat)
+            local dist = 1000
+            if v.targetZone then
+                dist = VDist3(v.targetZone.pos,unitPos)
+            end
+            local priority = dist/(1+v.zoneThreat)
             if (not best) or priority < bestPriority then
                 best = v
                 bestPriority = priority
@@ -122,7 +127,7 @@ LandController = Class({
                     for _, g in groups do
                         -- Higher is better
                         if MAP:CanPathTo(g.pos,z.zone.pos,"surf") then
-                            local s = VDist3(g.pos,z.zone.pos)/(g.group:Size()*(z.zone.weight+z.zone.intel.importance.enemy))
+                            local s = VDist3(g.pos,z.zone.pos)*math.log(2+z.zone.intel.threat.land.enemy)/(g.group:Size()*(z.zone.weight+z.zone.intel.importance.enemy+z.zone.intel.importance.ally))
                             if g.targetZone.id == z.zone.id then
                                 s = s*self.maintainTargetBias
                             end
@@ -195,52 +200,6 @@ LandController = Class({
                 end
                 WaitTicks(1)
             end
-        end
-    end,
-
-    FindNewTarget = function(self,pos,layer)
-        local best
-        local bestPriority = 0
-        local foundYet = false
-        -- TODO: use layer info
-        for _, v in self.brain.intel.zones do
-            if (v.intel.class == "allied") or (v.intel.class == "neutral") or (not MAP:CanPathTo(pos,v.pos,"surf")) then
-                continue
-            end
-            local retreatFound = false
-            for _, e in v.edges do
-                if e.zone.intel.class == "neutral" or e.zone.intel.class == "allied" then
-                    retreatFound = true
-                end
-            end
-            if not retreatFound then
-                continue
-            end
-            local found = false
-            for _, g in self.groups do
-                if g.targetZone and (VDist3(g.targetZone.pos,v.pos) < 5) then
-                    found = true
-                end
-            end
-            if (not found) or (not foundYet) then
-                local priority = 1/v.weight
-                if table.getn(self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE,v.pos,30,'Enemy')) > 0 then
-                    priority = priority/5
-                end
-                priority = priority * (100+VDist3(pos,v.pos))
-                if (not foundYet) and (not found) then
-                    best = v
-                    bestPriority = priority
-                    foundYet = true
-                elseif (not best) or (priority < bestPriority) then
-                    best = v
-                end
-            end
-        end
-        if best then
-            return best
-        else
-            return self.brain.intel:FindZone(self.brain.intel.enemies[Random(1,table.getn(self.brain.intel.enemies))])
         end
     end,
 
