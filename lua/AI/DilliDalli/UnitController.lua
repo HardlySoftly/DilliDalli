@@ -111,7 +111,7 @@ LandController = Class({
                 end
                 if table.getn(zones) == 0 then
                     for _, spawn in self.brain.intel.enemies do
-                        table.insert(zones,{zone = MAP:FindZone(spawn), assigned = false})
+                        table.insert(zones,{zone = self.brain.intel:FindZone(spawn), assigned = false})
                     end
                 end
                 -- Now groups
@@ -127,7 +127,7 @@ LandController = Class({
                     for _, g in groups do
                         -- Higher is better
                         if MAP:CanPathTo(g.pos,z.zone.pos,"surf") then
-                            local s = VDist3(g.pos,z.zone.pos)*math.log(2+z.zone.intel.threat.land.enemy)/(g.group:Size()*(z.zone.weight+3*z.zone.intel.importance.enemy+2*z.zone.intel.importance.ally))
+                            local s = VDist3(g.pos,z.zone.pos)*math.log(2+z.zone.intel.threat.land.enemy)/(g.group:Size()*(z.zone.weight+3*z.zone.intel.importance.enemy+2*z.zone.intel.importance.allied))
                             if g.targetZone.id == z.zone.id then
                                 s = s*self.maintainTargetBias
                             end
@@ -186,8 +186,10 @@ LandController = Class({
                                 bestDist = d
                             end
                         end
-                        g1.group.stop = true
-                        bestGroup:Merge(g1.group)
+                        if bestGroup then
+                            g1.group.stop = true
+                            bestGroup:Merge(g1.group)
+                        end
                     end
                 end
                 -- And breathe out...
@@ -238,7 +240,7 @@ LandController = Class({
             self:CheckGroups()
             local units = self.brain.aiBrain:GetListOfUnits(categories.LAND * categories.MOBILE - categories.ENGINEER,false,true)
             local numUnits = table.getn(units)
-            local targetNumberOfGroups = math.min(math.log(math.max(numUnits-2,1)) + 2,self.brain.intel:NumLandAssaultZones())
+            local targetNumberOfGroups = math.min(math.log(math.max(numUnits-2,1)) + 2,math.max(1,self.brain.intel:NumLandAssaultZones()))
             local numGroups = table.getn(self.groups)
             for _, unit in units do
                 if not unit.CustomData then

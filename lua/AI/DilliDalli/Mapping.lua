@@ -307,7 +307,7 @@ GameMap = Class({
         local best = nil
         local bestDist = 0
         for _, v in self.zones do
-            if (not best) or VDist3(pos,v.pos) < bestDist then
+            if (not best) or (VDist3(pos,v.pos) < bestDist) then
                 best = v
                 bestDist = VDist3(pos,v.pos)
             end

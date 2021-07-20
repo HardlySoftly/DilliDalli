@@ -272,10 +272,10 @@ IntelManager = Class({
                 zone.intel.importance.enemy = zone.intel.importance.enemy + 1
             end
         end
-        zone.intel.importance.ally = 0
+        zone.intel.importance.allied = 0
         for _, v in alliedUnits do
             if EntityCategoryContains(categories.STRUCTURE, v) then
-                zone.intel.importance.ally = zone.intel.importance.ally + 1
+                zone.intel.importance.allied = zone.intel.importance.allied + 1
             end
         end
     end,
@@ -410,7 +410,7 @@ IntelManager = Class({
         local best = nil
         local bestDist = 0
         for _, v in self.zones do
-            if (not best) or VDist3(pos,v.pos) < bestDist then
+            if (not best) or (VDist3(pos,v.pos) < bestDist) then
                 best = v
                 bestDist = VDist3(pos,v.pos)
             end
