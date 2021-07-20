@@ -30,7 +30,7 @@ LandController = Class({
         self.groups = {}
         self.groupID = 1
 
-        self.maintainTargetBias = 1.5
+        self.maintainTargetBias = 2.0
         self.rematch = false
     end,
 
@@ -127,7 +127,7 @@ LandController = Class({
                     for _, g in groups do
                         -- Higher is better
                         if MAP:CanPathTo(g.pos,z.zone.pos,"surf") then
-                            local s = VDist3(g.pos,z.zone.pos)*math.log(2+z.zone.intel.threat.land.enemy)/(g.group:Size()*(z.zone.weight+z.zone.intel.importance.enemy+z.zone.intel.importance.ally))
+                            local s = VDist3(g.pos,z.zone.pos)*math.log(2+z.zone.intel.threat.land.enemy)/(g.group:Size()*(z.zone.weight+3*z.zone.intel.importance.enemy+2*z.zone.intel.importance.ally))
                             if g.targetZone.id == z.zone.id then
                                 s = s*self.maintainTargetBias
                             end
@@ -248,7 +248,7 @@ LandController = Class({
                     unit.CustomData.landAssigned = true
                     if EntityCategoryContains(categories.EXPERIMENTAL,unit) then
                         self:ForkThread(self.ExpThread,unit)
-                    elseif numGroups < targetNumberOfGroups then
+                    elseif numGroups < targetNumberOfGroups and (not EntityCategoryContains(categories.SCOUT,unit)) then
                         -- Create group
                         self:CreateGroup(unit)
                         numGroups = numGroups + 1
@@ -498,7 +498,7 @@ LandGroup = Class({
     end,
     ZoneAttackFunction = function(self, t, myPos)
         if (t > 0) then
-            if (self.localSupport < self.localThreat*0.8) then
+            if (self.localSupport*self.confidence < self.localThreat) then
                 return LandGroup.RETREAT
             end
         end
@@ -519,7 +519,7 @@ LandGroup = Class({
             if self.attacking then
                 self.attacking = (self.localSupport*self.confidence >= self.targetZone.intel.threat.land.enemy)
             else
-                self.attacking = (self.localSupport*self.confidence*0.75 >= self.targetZone.intel.threat.land.enemy)
+                self.attacking = (self.localSupport*self.confidence*0.5 >= self.targetZone.intel.threat.land.enemy)
             end
             if self.attacking and self.targetZone then
                 if VDist3(self.lastPos,self.targetZone.pos) > 10 then

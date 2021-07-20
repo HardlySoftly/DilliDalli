@@ -33,6 +33,7 @@ GameMap = Class({
         -- TODO: inspect the results of GetTerrainType for context
         -- Step 1: Calculate marker positions
         self.border = 5
+        -- TODO: Get actual map bounds here (these can be different from size, e.g. fields of isis)
         local effectiveXSize = ScenarioInfo.size[1]-2*self.border
         local effectiveZSize = ScenarioInfo.size[2]-2*self.border
         -- Max number of markers limited to ~200x200 = 40k (a lot, but oh well)

@@ -136,7 +136,7 @@ IntelManager = Class({
         return true
     end,
     GetEnemyStructure = function(self,pos)
-        local units = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Enemy')
+        local units = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.8,'Enemy')
         local myIndex = self.brain.aiBrain:GetArmyIndex()
         if units and table.getn(units) > 0 then
             local blip = units[1]:GetBlip(myIndex)
@@ -248,7 +248,7 @@ IntelManager = Class({
             if table.getn(alliedUnits) > 0 and table.getn(enemyUnits) > 0 and 2*table.getn(alliedUnits) > table.getn(enemyUnits) then
                 zone.intel.control.allied = table.getn(alliedUnits)/(table.getn(alliedUnits) + table.getn(enemyUnits))
                 zone.intel.control.enemy = table.getn(enemyUnits)/(table.getn(alliedUnits) + table.getn(enemyUnits))
-            elseif table.getn(enemyUnits) > 0 or zone.intel.enemyBase then
+            elseif table.getn(enemyUnits) > 0 or (zone.intel.enemyBase and table.getn(alliedUnits) == 0) then
                 zone.intel.control.allied = 0.0
                 zone.intel.control.enemy = 1.0
             elseif table.getn(alliedUnits) > 0 then
