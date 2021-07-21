@@ -5,6 +5,8 @@ translate = {
         CYBRAN = "urb1103",
         SERAPHIM = "xsb1103",
         NOMADS = "xnb1103",
+        ARM = "armmex",
+        CORE = "cormex",
     },
     MexT2 = {
         AEON = "uab1202",
@@ -12,6 +14,8 @@ translate = {
         CYBRAN = "urb1202",
         SERAPHIM = "xsb1202",
         NOMADS = "xnb1202",
+        ARM = "armmass",
+        CORE = "cormass",
     },
     MexT3 = {
         AEON = "uab1302",
@@ -19,6 +23,8 @@ translate = {
         CYBRAN = "urb1302",
         SERAPHIM = "xsb1302",
         NOMADS = "xnb1302",
+        ARM = "armmoho",
+        CORE = "cormoho",
     },
     LandFactoryT1 = {
         AEON = "uab0101",
@@ -26,6 +32,8 @@ translate = {
         CYBRAN = "urb0101",
         SERAPHIM = "xsb0101",
         NOMADS = "xnb0101",
+        ARM = "armlab",
+        CORE = "corvp",
     },
     LandHQT2 = {
         AEON = "uab0201",
@@ -33,6 +41,8 @@ translate = {
         CYBRAN = "urb0201",
         SERAPHIM = "xsb0201",
         NOMADS = "xnb0201",
+        ARM = "armdlab",
+        CORE = "cordvp",
     },
     LandHQT3 = {
         AEON = "uab0301",
@@ -40,6 +50,8 @@ translate = {
         CYBRAN = "urb0301",
         SERAPHIM = "xsb0301",
         NOMADS = "xnb0301",
+        ARM = "armdalab",
+        CORE = "coradvp",
     },
     LandSupportT2 = {
         AEON = "zab9501",
@@ -47,6 +59,8 @@ translate = {
         CYBRAN = "zrb9501",
         SERAPHIM = "zsb9501",
         NOMADS = "znb9501",
+        ARM = "armalab",
+        CORE = "coravp",
     },
     LandSupportT3 = {
         AEON = "zab9601",
@@ -54,6 +68,8 @@ translate = {
         CYBRAN = "zrb9601",
         SERAPHIM = "zsb9601",
         NOMADS = "znb9601",
+        ARM = "armhp",
+        CORE = "corhp",
     },
     AirFactoryT1 = {
         AEON = "uab0102",
@@ -61,6 +77,8 @@ translate = {
         CYBRAN = "urb0102",
         SERAPHIM = "xsb0102",
         NOMADS = "xnb0102",
+        ARM = "armap",
+        CORE = "corap",
     },
     AirHQT2 = {
         AEON = "uab0202",
@@ -68,6 +86,8 @@ translate = {
         CYBRAN = "urb0202",
         SERAPHIM = "xsb0202",
         NOMADS = "xnb0202",
+        ARM = "armdap",
+        CORE = "cordap",
     },
     AirHQT3 = {
         AEON = "uab0302",
@@ -75,6 +95,8 @@ translate = {
         CYBRAN = "urb0302",
         SERAPHIM = "xsb0302",
         NOMADS = "xnb0302",
+        ARM = "armdap",
+        CORE = "cordap",
     },
     AirSupportT2 = {
         AEON = "zab9502",
@@ -82,6 +104,8 @@ translate = {
         CYBRAN = "zrb9502",
         SERAPHIM = "zsb9502",
         NOMADS = "znb9502",
+        ARM = "armaap",
+        CORE = "coraap",
     },
     AirSupportT3 = {
         AEON = "zab9602",
@@ -89,6 +113,8 @@ translate = {
         CYBRAN = "zrb9602",
         SERAPHIM = "zsb9602",
         NOMADS = "znb9602",
+        ARM = "armplat",
+        CORE = "corplat",
     },
     Hydro = {
         AEON = "uab1102",
@@ -96,6 +122,8 @@ translate = {
         CYBRAN = "urb1102",
         SERAPHIM = "xsb1102",
         NOMADS = "xnb1102",
+        ARM = "armgeo",
+        CORE = "corgeo",
     },
     PgenT1 = {
         AEON = "uab1101",
@@ -103,6 +131,8 @@ translate = {
         CYBRAN = "urb1101",
         SERAPHIM = "xsb1101",
         NOMADS = "xnb1101",
+        ARM = "armsolar",
+        CORE = "corsolar",
     },
     PgenT2 = {
         AEON = "uab1201",
@@ -110,6 +140,8 @@ translate = {
         CYBRAN = "urb1201",
         SERAPHIM = "xsb1201",
         NOMADS = "xnb1201",
+        ARM = "armfus",
+        CORE = "corfus",
     },
     PgenT3 = {
         AEON = "uab1301",
@@ -117,6 +149,8 @@ translate = {
         CYBRAN = "urb1301",
         SERAPHIM = "xsb1301",
         NOMADS = "xnb1301",
+        ARM = "armckfus",
+        CORE = "corckfus",
     },
     EngineerT1 = {
         AEON = "ual0105",
@@ -124,6 +158,8 @@ translate = {
         CYBRAN = "url0105",
         SERAPHIM = "xsl0105",
         NOMADS = "xnl0105",
+        ARM = "armck",
+        CORE = "corcv",
     },
     EngineerT2 = {
         AEON = "ual0208",
@@ -131,6 +167,8 @@ translate = {
         CYBRAN = "url0208",
         SERAPHIM = "xsl0208",
         NOMADS = "xnl0208",
+        ARM = "armack",
+        CORE = "coracv",
     },
     EngineerT3 = {
         AEON = "ual0309",
@@ -138,6 +176,8 @@ translate = {
         CYBRAN = "url0309",
         SERAPHIM = "xsl0309",
         NOMADS = "xnl0309",
+        ARM = "armch",
+        CORE = "corch",
     },
     LandScoutT1 = {
         AEON = "ual0101",
@@ -145,6 +185,8 @@ translate = {
         CYBRAN = "url0101",
         SERAPHIM = "xsl0101",
         NOMADS = "xnl0101",
+        ARM = "armflea",
+        CORE = "corfav",
     },
     DirectFireT1 = {
         AEON = "ual0201",
@@ -152,6 +194,8 @@ translate = {
         CYBRAN = "url0107",
         SERAPHIM = "xsl0201",
         NOMADS = "xnl0201",
+        ARM = "armwar",
+        CORE = "corraid",
     },
     ArtyT1 = {
         AEON = "ual0103",
@@ -159,6 +203,8 @@ translate = {
         CYBRAN = "url0103",
         SERAPHIM = "xsl0103",
         NOMADS = "xnl0107",
+        ARM = "armham",
+        CORE = "corlevlr",
     },
     AntiAirT1 = {
         AEON = "ual0104",
@@ -166,6 +212,8 @@ translate = {
         CYBRAN = "url0104",
         SERAPHIM = "xsl0104",
         NOMADS = "xnl0103",
+        ARM = "armjeth",
+        CORE = "cormist",
     },
     DirectFireT2 = {
         AEON = "ual0202",
@@ -173,6 +221,8 @@ translate = {
         CYBRAN = "url0202",
         SERAPHIM = "xsl0202",
         NOMADS = "xnl0202",
+        ARM = "armfido",
+        CORE = "correap",
     },
     RangedT2 = {
         AEON = "xal0203",
@@ -180,6 +230,8 @@ translate = {
         CYBRAN = "drl0204",
         SERAPHIM = "xsl0202",
         NOMADS = "xnl0306",
+        ARM = "armfast",
+        CORE = "corseal",
     },
     AmphibiousT2 = {
         AEON = "xal0203",
@@ -187,6 +239,8 @@ translate = {
         CYBRAN = "url0203",
         SERAPHIM = "xsl0203",
         NOMADS = "xnl0203",
+        ARM = "armamph",
+        CORE = "corseal",
     },
     AntiAirT2 = {
         AEON = "ual0205",
@@ -194,6 +248,8 @@ translate = {
         CYBRAN = "url0205",
         SERAPHIM = "xsl0205",
         NOMADS = "xnl0205",
+        ARM = "armamph",
+        CORE = "corsent",
     },
     MMLT2 = {
         AEON = "ual0111",
@@ -201,6 +257,8 @@ translate = {
         CYBRAN = "url0111",
         SERAPHIM = "xsl0111",
         NOMADS = "xnl0111",
+        ARM = "armrock",
+        CORE = "corvroc",
     },
     DirectFireT3 = {
         AEON = "ual0303",
@@ -208,6 +266,8 @@ translate = {
         CYBRAN = "url0303",
         SERAPHIM = "xsl0303",
         NOMADS = "xnl0303",
+        ARM = "armzeus",
+        CORE = "corgol",
     },
     RangedT3 = {
         AEON = "xal0305",
@@ -215,6 +275,8 @@ translate = {
         CYBRAN = "xrl0305",
         SERAPHIM = "xsl0305",
         NOMADS = "xnl0305",
+        ARM = "armsnipe",
+        CORE = "cormort",
     },
     HeavyLandT3 = {
         AEON = "ual0303",
@@ -222,6 +284,8 @@ translate = {
         CYBRAN = "xrl0305",
         SERAPHIM = "xsl0303",
         NOMADS = "xnl0305",
+        ARM = "armanac",
+        CORE = "corsnap",
     },
     AntiAirT3 = {
         AEON = "dalk003",
@@ -229,6 +293,8 @@ translate = {
         CYBRAN = "drlk001",
         SERAPHIM = "dslk004",
         NOMADS = "xnl0302",
+        ARM = "armah",
+        CORE = "corah",
     },
     ArtyT3 = {
         AEON = "ual0304",
@@ -236,6 +302,8 @@ translate = {
         CYBRAN = "url0304",
         SERAPHIM = "xsl0304",
         NOMADS = "xnl0304",
+        ARM = "armbrtha",
+        CORE = "corint",
     },
     LandExp = {
         AEON = "ual0401",
@@ -243,6 +311,8 @@ translate = {
         CYBRAN = "url0402",
         SERAPHIM = "xsl0401",
         NOMADS = "xnl0403",
+        ARM = "armdrake",
+        CORE = "corkrog",
     },
     AirScoutT1 = {
         AEON = "uaa0101",
@@ -250,6 +320,8 @@ translate = {
         CYBRAN = "ura0101",
         SERAPHIM = "xsa0101",
         NOMADS = "xna0101",
+        ARM = "armpeep",
+        CORE = "corfink",
     },
     IntieT1 = {
         AEON = "uaa0102",
@@ -257,5 +329,7 @@ translate = {
         CYBRAN = "ura0102",
         SERAPHIM = "xsa0102",
         NOMADS = "xna0102",
+        ARM = "armfig",
+        CORE = "corveng",
     },
 }
