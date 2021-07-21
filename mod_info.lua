@@ -1,6 +1,6 @@
 name = "AI: DilliDalli"
-uid = "28F4B5A9EDE30F06-version:0.2.13"
-version = 7
+uid = "28F4B5A9EDE30F06-version:0.2.14"
+version = 8
 copyright = "Softles"
 description = "ALPHA version: 1v1 specialist AI.  Complete AI code rewrite."
 author = "Softles"

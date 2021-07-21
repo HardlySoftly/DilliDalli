@@ -211,7 +211,7 @@ BaseProduction = Class({
         local massRemaining = mass - self.t1EngieJob.actualSpend
         local availableMex = self.brain.intel:GetNumAvailableMassPoints()
         self.mexJob.duplicates = availableMex/2
-        local engiesRequired = 1+math.min(3,math.log(availableMex+1))*math.sqrt(mass)-self.brain.monitor.units.engies.t1
+        local engiesRequired = 1+math.max(3,math.sqrt(availableMex/2+1))*math.sqrt(mass)-self.brain.monitor.units.engies.t1
         -- Drop out early if we're still doing our build order
         if not self.brain.base.isBOComplete then
             self.t1EngieJob.count = engiesRequired
