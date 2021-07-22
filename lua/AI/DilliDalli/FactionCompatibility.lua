@@ -50,7 +50,7 @@ translate = {
         CYBRAN = "urb0301",
         SERAPHIM = "xsb0301",
         NOMADS = "xnb0301",
-        ARM = "armdalab",
+        ARM = "armadlab",
         CORE = "coradvp",
     },
     LandSupportT2 = {
