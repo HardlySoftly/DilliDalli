@@ -3,7 +3,7 @@ local BC = import('/mods/DilliDalli/lua/FlowAI/framework/BaseController.lua')
 --local AM = import('/mods/DilliDalli/lua/AI/DilliDalli/ArmyMonitor.lua')
 --local UC = import('/mods/DilliDalli/lua/AI/DilliDalli/UnitController.lua')
 --local PM = import('/mods/DilliDalli/lua/AI/DilliDalli/ProductionManager.lua')
-local PG = import('/mods/DilliDalli/lua/AI/DilliDalli/ProductionGraph.lua')
+local PG = import('/mods/DilliDalli/lua/FlowAI/framework/ProductionGraph.lua')
 
 
 Brain = Class({

@@ -1,5 +1,5 @@
-local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
+local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/Profiler.lua').GetProfiler()
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/PriorityQueue.lua').CreatePriorityQueue
 
 GameMap = Class({
     InitMap = function(self)

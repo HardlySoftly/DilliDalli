@@ -1,5 +1,5 @@
-local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
-local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/Profiler.lua').GetProfiler()
+local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua').GetMap()
 
 function WaitingOnCommands(cmds)
     for _, cmd in cmds do
