@@ -1,8 +1,7 @@
-local TroopFunctions = import('/mods/DilliDalli/lua/AI/DilliDalli/TroopFunctions.lua')
-local Translation = import('/mods/DilliDalli/lua/AI/DilliDalli/FactionCompatibility.lua').translate
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/AI/DilliDalli/PriorityQueue.lua').CreatePriorityQueue
-local PROFILER = import('/mods/DilliDalli/lua/AI/DilliDalli/Profiler.lua').GetProfiler()
-local MAP = import('/mods/DilliDalli/lua/AI/DilliDalli/Mapping.lua').GetMap()
+local EngieFunctions = import('/mods/DilliDalli/lua/FlowAI/framework/EngieFunctions.lua')
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/PriorityQueue.lua').CreatePriorityQueue
+local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/Profiler.lua').GetProfiler()
+local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua').GetMap()
 
 BaseController = Class({
     Initialise = function(self,brain)
@@ -58,30 +57,18 @@ BaseController = Class({
     end,
 
     AddMobileJob = function(self,job)
-        if not Translation[job.work] then
-            WARN("Unable to translate, ignoring: "..tostring(job.work))
-            return nil
-        end
         local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="mobile" }
         self.jobID = self.jobID + 1
         table.insert(self.mobileJobs, { job = job, meta=meta })
         return meta
     end,
     AddFactoryJob = function(self,job)
-        if not Translation[job.work] then
-            WARN("Unable to translate, ignoring: "..tostring(job.work))
-            return nil
-        end
         local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="factory" }
         self.jobID = self.jobID + 1
         table.insert(self.factoryJobs, { job = job, meta=meta })
         return meta
     end,
     AddUpgradeJob = function(self,job)
-        if not Translation[job.work] then
-            WARN("Unable to translate, ignoring: "..tostring(job.work))
-            return nil
-        end
         local meta = { assigned = {}, assisting = {}, spend = 0, id = self.jobID, activeCount = 0, failures = 0, type="upgrade" }
         self.jobID = self.jobID + 1
         table.insert(self.upgradeJobs, { job = job, meta=meta })
@@ -144,7 +131,7 @@ BaseController = Class({
                 end
                 -- Tidy up state
                 job.job.count = job.job.count - 1
-                local tBP = GetUnitBlueprintByName(Translation[job.job.work][unit.factionCategory])
+                local tBP = GetUnitBlueprintByName(job.job.work)
                 job.meta.spend = job.meta.spend - buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
                 job.meta.activeCount = job.meta.activeCount - 1
                 -- Remove from assigned workers
@@ -206,7 +193,7 @@ BaseController = Class({
     end,
     DoJobAssignment = function(self,unit,job,threadID)
         -- Update job metadata to reflect this unit being assigned to the given job
-        local tBP = GetUnitBlueprintByName(Translation[job.job.work][unit.factionCategory])
+        local tBP = GetUnitBlueprintByName(job.job.work)
         local buildRate = unit:GetBuildRate()
         job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
@@ -229,20 +216,20 @@ BaseController = Class({
         while activeJob do
             if assistData then
                 PROFILER:Add("RunMobileJobThread",PROFILER:Now()-start)
-                TroopFunctions.EngineerAssist(engie,assistData.unit)
+                EngieFunctions.EngineerAssist(engie,assistData.unit)
                 start = PROFILER:Now()
                 self:OnCompleteAssist(activeJob.meta.id,buildRate,threadID)
                 success = true
             else
-                local unitID = Translation[activeJob.job.work][engie.factionCategory]
+                local unitID = activeJob.job.work
                 -- Build the thing
                 PROFILER:Add("RunMobileJobThread",PROFILER:Now()-start)
                 if activeJob.job.work == "MexT1" or activeJob.job.work == "MexT2" or activeJob.job.work == "MexT3" then
-                    success = TroopFunctions.EngineerBuildMarkedStructure(self.brain,engie,unitID,"Mass")
+                    success = EngieFunctions.EngineerBuildMarkedStructure(self.brain,engie,unitID,"Mass")
                 elseif activeJob.job.work == "Hydro" then
-                    success = TroopFunctions.EngineerBuildMarkedStructure(self.brain,engie,unitID,"Hydrocarbon")
+                    success = EngieFunctions.EngineerBuildMarkedStructure(self.brain,engie,unitID,"Hydrocarbon")
                 else
-                    success = TroopFunctions.EngineerBuildStructure(self.brain,engie,unitID)
+                    success = EngieFunctions.EngineerBuildStructure(self.brain,engie,unitID)
                 end
                 start = PROFILER:Now()
                 -- Return engie back to the pool
@@ -272,10 +259,10 @@ BaseController = Class({
         local start = PROFILER:Now()
         local activeJob = job
         while activeJob do
-            local unitID = Translation[activeJob.job.work][fac.factionCategory]
+            local unitID = activeJob.job.work
             -- Build the thing
             PROFILER:Add("RunFactoryJobThread",PROFILER:Now()-start)
-            TroopFunctions.FactoryBuildUnit(fac,unitID)
+            EngieFunctions.FactoryBuildUnit(fac,unitID)
             start = PROFILER:Now()
             -- Return fac back to the pool
             self:OnCompleteJob(fac,activeJob.meta.id,false,buildRate,threadID,self.factoryJobs)
@@ -306,7 +293,7 @@ BaseController = Class({
             -- Issue upgrade
             --LOG("Issuing upgrade")
             IssueClearCommands({unit})
-            IssueUpgrade({unit},Translation[job.job.work][unit.factionCategory])
+            IssueUpgrade({unit},job.job.work)
         end
         PROFILER:Add("RunUpgradeJobThread",PROFILER:Now()-start)
         WaitTicks(2)
@@ -347,7 +334,7 @@ BaseController = Class({
     AssignUpgradeJob = function(self,unit,job)
         local threadID = self:GetThreadID()
         -- I can't use the regular job assignment, since units are passed in here that may already be on jobs.
-        local tBP = GetUnitBlueprintByName(Translation[job.job.work][unit.factionCategory])
+        local tBP = GetUnitBlueprintByName(job.job.work)
         local buildRate = unit:GetBuildRate()
         job.meta.spend = job.meta.spend + buildRate*tBP.Economy.BuildCostMass/tBP.Economy.BuildTime
         job.meta.activeCount = job.meta.activeCount + 1
@@ -406,7 +393,7 @@ BaseController = Class({
                 (
                     (job.meta.activeCount < job.job.duplicates)
                     and (job.meta.activeCount < job.job.count)
-                    and unit:CanBuild(Translation[job.job.work][unit.factionCategory])
+                    and unit:CanBuild(job.job.work)
                 ) or (
                     (not EntityCategoryContains(categories.FACTORY,unit)) and job.job.assist and self:FindAssistInRadius(unit,job,self.assistRadius)
                 )
@@ -494,7 +481,7 @@ BaseController = Class({
             end
             local prioritisedUnits = CreatePriorityQueue()
             for _, unit in units do
-                if (not unit) or unit.Dead or (not unit:CanBuild(Translation[job.job.work][unit.factionCategory])) or unit.CustomData.excludeAssignment or unit:IsBeingBuilt() then
+                if (not unit) or unit.Dead or (not unit:CanBuild(job.job.work)) or unit.CustomData.excludeAssignment or unit:IsBeingBuilt() then
                     -- Can't upgrade to the relevant unit
                     continue
                 else
