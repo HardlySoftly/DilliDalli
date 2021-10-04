@@ -110,7 +110,7 @@ IntelManager = Class({
             if v.type == t then
                 local dist = VDist3(pos,v.position)
                 if (dist < best) and self:CanBuildOnMarker(v.position,bp)
-                                 and MAP:CanPathTo(pos,v.position,"surf")
+                                 and MAP:CanPathTo(pos,v.position,3)
                                  and self.brain.base:LocationIsClear(v.position,bp) then
                     best = dist
                     bestMarker = v

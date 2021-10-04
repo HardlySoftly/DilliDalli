@@ -163,6 +163,23 @@ ProductionGraph = Class({
     
 })
 
+function InitProductionGraph()
+    local START = GetSystemTimeSecondsOnlyForProfileUse()
+    local pg = ProductionGraph()
+    pg:Init()
+    local nn = 0
+    for _, _ in pg.nodes do
+        nn = nn + 1
+    end
+    local en = 0
+    for _, _ in pg.edges do
+        en = en + 1
+    end
+    LOG("Production Graph data - num nodes: "..tostring(nn).." - num edges: "..tostring(en))
+    local END = GetSystemTimeSecondsOnlyForProfileUse()
+    LOG(string.format('FlowAI framework: Production Graph initialisation finished, runtime: %.2f seconds.', END - START ))
+end
+
 ProductionManager = Class({
 
     Run = function(self)
