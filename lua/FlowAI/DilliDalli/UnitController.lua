@@ -126,7 +126,7 @@ LandController = Class({
                 for _, z in zones do
                     for _, g in groups do
                         -- Higher is better
-                        if MAP:CanPathTo(g.pos,z.zone.pos,"surf") then
+                        if MAP:CanPathTo(g.pos,z.zone.pos,3) then
                             local s = VDist3(g.pos,z.zone.pos)*math.log(2+z.zone.intel.threat.land.enemy)/(g.group:Size()*(z.zone.weight+3*z.zone.intel.importance.enemy+2*z.zone.intel.importance.allied))
                             if g.targetZone.id == z.zone.id then
                                 s = s*self.maintainTargetBias

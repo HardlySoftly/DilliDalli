@@ -47,7 +47,7 @@ function FindLocation(aiBrain, baseManager, intelManager, blueprint, location, r
     local maxIterations = 100000 -- 300x300 square
     while iterations < maxIterations do
         iterations = iterations + 1
-        if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) and MAP:CanPathTo(location,targetLocation,"surf")
+        if aiBrain:CanBuildStructureAt(blueprint.BlueprintId,targetLocation) and MAP:CanPathTo(location,targetLocation,3)
                                                                              and baseManager:LocationIsClear(targetLocation,blueprint) then
             -- TODO add adjacency check support
             PROFILER:Add("FindLocation",PROFILER:Now()-startTime)

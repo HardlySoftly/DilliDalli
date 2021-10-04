@@ -281,7 +281,7 @@ LandProduction = Class({
         self.name = "Land"
         self.brain = brain
         self.coord = coord
-        self.island = not MAP:CanPathTo(self.brain.intel.allies[1],self.brain.intel.enemies[1],"land")
+        self.island = not MAP:CanPathTo(self.brain.intel.allies[1],self.brain.intel.enemies[1],1)
         -- Base zone
         self.baseZone = self.brain.intel:FindZone(self.brain.intel.allies[1])
         -- T1 jobs

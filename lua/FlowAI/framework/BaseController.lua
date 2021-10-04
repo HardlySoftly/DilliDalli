@@ -355,7 +355,7 @@ BaseController = Class({
         local myPos = engie:GetPosition()
         for _, v in job.meta.assigned do
             local theirPos = v.unit:GetPosition()
-            if MAP:CanPathTo(myPos,theirPos,"surf") and (VDist3(myPos,theirPos) < self.assistRadius) and (not v.unit:IsBeingBuilt()) then
+            if MAP:CanPathTo(myPos,theirPos,3) and (VDist3(myPos,theirPos) < self.assistRadius) and (not v.unit:IsBeingBuilt()) then
                 return { unit = v.unit, thread = v.thread }
             end
         end
