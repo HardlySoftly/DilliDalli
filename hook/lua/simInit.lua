@@ -1,11 +1,11 @@
 local DilliDalliBeginSession = import('/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua').BeginSession
-local DilliDalliInitProductionGraph = import('/mods/DilliDalli/lua/FlowAI/framework/ProductionGraph.lua').InitProductionGraph
+local DilliDalliLoadBPData = import('/mods/DilliDalli/lua/FlowAI/framework/ProductionGraph.lua').LoadBPData
 
 local DilliDalliYeOldeBeginSession = BeginSession
 function BeginSession()
     DilliDalliYeOldeBeginSession()
     DilliDalliBeginSession()
-    DilliDalliInitProductionGraph()
+    DilliDalliLoadBPData()
 end
 
 DilliDalliYeOldeCreateResourceDeposit = CreateResourceDeposit

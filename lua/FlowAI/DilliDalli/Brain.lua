@@ -3,7 +3,7 @@ local BC = import('/mods/DilliDalli/lua/FlowAI/framework/BaseController.lua')
 --local AM = import('/mods/DilliDalli/lua/AI/DilliDalli/ArmyMonitor.lua')
 --local UC = import('/mods/DilliDalli/lua/AI/DilliDalli/UnitController.lua')
 --local PM = import('/mods/DilliDalli/lua/AI/DilliDalli/ProductionManager.lua')
-local PG = import('/mods/DilliDalli/lua/FlowAI/framework/ProductionGraph.lua')
+local PM = import('/mods/DilliDalli/lua/FlowAI/framework/EconomyManager.lua')
 
 
 Brain = Class({
@@ -21,8 +21,10 @@ Brain = Class({
         --self.intel = IM.CreateIntelManager(self)
         --self.monitor = AM.CreateArmyMonitor(self)
         --self.army = UC.CreateUnitController(self)
-        --self.production = PM.CreateProductionManager(self)
+        self.eco = PM.CreateProductionManager(self)
+        self.eco:SetPriority({ weights = {ual0201 = 1.0, uel0201 = 1.0, url0107 = 1.0, xsl0201 = 1.0}, globalWeight = 1.0})
         LOG("DilliDalli Brain ready...")
+        self.eco:Run()
         --bo = self.intel:PickBuildOrder()
         -- Make sure to copy items so that different AIs don't end up sharing variables (learned that the hard way)
         --for _, v in bo.mobile do
