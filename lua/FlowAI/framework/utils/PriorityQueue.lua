@@ -93,23 +93,3 @@ function CreatePriorityQueue()
     pq:Init()
     return pq
 end
-
-function SortTable(tbl)
-    -- sort a table smallest to largest.  Do this by abusing my knowledge of the PriorityQueue class internals.
-    local pq = PriorityQueue()
-    local n = table.getn(tbl)
-    pq.items = tbl
-    pq.rev = true
-    for i=1,n do
-        pq.size = i
-        pq:HeapUp()
-    end
-    -- Usually comments provide helpful context to code, but here I just wanted to express my deep satisfaction with the heapsort algorithm.
-    for i=n,1,-1 do
-        local t = pq.items[1]
-        pq.items[1] = pq.items[n]
-        pq.items[n] = t
-        pq.size = n-1
-        pq:HeapDown()
-    end
-end

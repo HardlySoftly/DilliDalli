@@ -1,5 +1,5 @@
-local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/Profiler.lua').GetProfiler()
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/PriorityQueue.lua').CreatePriorityQueue
+local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
 --[[
     This code is largely written with performance in mind over readability.
