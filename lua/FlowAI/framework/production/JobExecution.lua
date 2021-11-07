@@ -1,5 +1,5 @@
 --[[
-Execution of individual jobs
+    Execution of individual jobs
 ]]
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
@@ -14,12 +14,14 @@ JobExecutor = Class({
 })
 
 MobileJobExecutor = Class(JobExecutor) {
-    Init = function(self,builder,toBuildID,buildLocation,deconflicter,commandInterface)
+    Init = function(self,builder,toBuildID,buildLocation,deconflicter,commandInterface,brain)
+        self.brain = brain
         -- Some flags we'll need
         self.complete = false
         self.success = false
         -- The thing we're building - while this is nil we assume the job is unstarted
         self.target = nil
+        self.toBuildID = toBuildID
         -- The engie that can start the jobs
         self.builder = builder
         -- The engie to assist (if not the target)
@@ -36,7 +38,8 @@ MobileJobExecutor = Class(JobExecutor) {
     end,
 
     AddEngineer = function(self,assister)
-        -- TODO
+        self.subsidiaryEngies[self.numEngies] = assister
+        self.numEngies = self.numEngies + 1
     end,
 
     GetEstimatedCompletionTime = function(self,includeBottlenecks)
@@ -52,12 +55,13 @@ MobileJobExecutor = Class(JobExecutor) {
         local reissue = true
         local started = false
         -- Initialise job
-        self.deconflicter:Register(self.buildLocation)
-        self.commandInterface:IssueBuildMobile({self.mainEngie},self.buildLocation,toBuildID)
+        self.deconflicter:Register(self.buildLocation,GetUnitBlueprintByName(self.toBuildID))
+        self.commandInterface:IssueBuildMobile({self.mainEngie},self.buildLocation,self.toBuildID)
         PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
         WaitTicks(1)
-        start = PROFILER:Now()
         while (not self.complete) and (self.numEngies > 0 or self.target) do
+            WaitTicks(1)
+            start = PROFILER:Now()
             -- Try to update self.target.
             if (not self.target) and self.mainEngie.UnitBeingBuilt then
                 self.target = self.mainEngie.UnitBeingBuilt
@@ -116,7 +120,7 @@ MobileJobExecutor = Class(JobExecutor) {
                 -- Check if main engie is idle.  Try a single order re-issue if it is, otherwise fail.
                 if (not self.target) and self.mainEngie:IsIdleState() then
                     if reissue then
-                        self.commandInterface:IssueBuildMobile({self.mainEngie},self.buildLocation,toBuildID)
+                        self.commandInterface:IssueBuildMobile({self.mainEngie},self.buildLocation,self.toBuildID)
                         reissue = false
                     else
                         self.complete = true
@@ -142,10 +146,24 @@ MobileJobExecutor = Class(JobExecutor) {
             end
             PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
             WaitTicks(1)
-            start = PROFILER:Now()
         end
+        start = PROFILER:Now()
         self.deconflicter:Clear(self.buildLocation)
         PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
+    end,
+
+    Run = function(self)
+        self:ForkThread(self.JobThread)
+    end,
+
+    ForkThread = function(self, fn, ...)
+        if fn then
+            local thread = ForkThread(fn, self, unpack(arg))
+            self.brain.Trash:Add(thread)
+            return thread
+        else
+            return nil
+        end
     end,
 }
 

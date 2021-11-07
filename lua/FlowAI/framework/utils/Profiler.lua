@@ -1,4 +1,4 @@
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/PriorityQueue.lua').CreatePriorityQueue
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
 Profiler = Class({
     Init = function(self)
