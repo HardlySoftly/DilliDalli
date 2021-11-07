@@ -1,11 +1,13 @@
 local DilliDalliBeginSession = import('/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua').BeginSession
 local DilliDalliLoadBPData = import('/mods/DilliDalli/lua/FlowAI/framework/ProductionGraph.lua').LoadBPData
+local DilliDalliInitLocations = import('/mods/DilliDalli/lua/FlowAI/framework/production/Locations.lua').InitialiseCoords
 
 local DilliDalliYeOldeBeginSession = BeginSession
 function BeginSession()
     DilliDalliYeOldeBeginSession()
     DilliDalliBeginSession()
     DilliDalliLoadBPData()
+    DilliDalliInitLocations()
 end
 
 DilliDalliYeOldeCreateResourceDeposit = CreateResourceDeposit

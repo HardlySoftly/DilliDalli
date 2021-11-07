@@ -19,6 +19,8 @@ MobileJobExecutor = Class(JobExecutor) {
         -- Some flags we'll need
         self.complete = false
         self.success = false
+        -- Completion explanation (for debugging)
+        self.reason = nil
         -- The thing we're building - while this is nil we assume the job is unstarted
         self.target = nil
         self.toBuildID = toBuildID
@@ -71,6 +73,7 @@ MobileJobExecutor = Class(JobExecutor) {
             if started and ((not self.target) or self.target.Dead) then
                 self.complete = true
                 self.success = false
+                self.reason = "Target was destroyed."
             end
             -- Iterate through self.subsidiaryEngies deleting dead things.
             if self.numEngies > 1 then
@@ -101,12 +104,14 @@ MobileJobExecutor = Class(JobExecutor) {
                     -- Main engie died without starting the job.  Any replacement main engie may not be able to build the intended job, so we have to fail.
                     self.complete = true
                     self.success = false
+                    self.reason = "Main engie died without starting job."
                 end
             end
             if self.target and (not self.target.Dead) and (not self.target:IsBeingBuilt()) then
                 -- Check if we've finished
                 self.complete = true
                 self.success = true
+                self.reason = "Target complete."
             end
             --[[
                 Invariants here:
@@ -125,6 +130,7 @@ MobileJobExecutor = Class(JobExecutor) {
                     else
                         self.complete = true
                         self.success = false
+                        self.reason = "Order reissue limit exceeded."
                     end
                 end
                 -- Iterate through self.subsidiaryEngies checking for idleness.
