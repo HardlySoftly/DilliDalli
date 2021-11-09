@@ -2,6 +2,8 @@
     Picks locations for building on
 ]]
 
+local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
+
 local _OFFSETS = {
     -- Orientation to search in = {X, Z, {{next X, next Z, next Last}, ...}}
     negZ = { {0, -1, {{0, -1, 1}, {-1, 0, 3}, {1, 0, 2}}}, {1, 0, {{1, 0, 2}}}, {-1, 0, {{-1, 0, 3}}}, {0, 1, {{0, 1, 4}, {1, 0, 2}, {-1, 0, 3}}} },
@@ -67,6 +69,31 @@ function GenerateCoords(x, z, last, instructions, radius)
     end
     return coords
 end
+
+function FindBuildCoordinates(loc, bp, deconflicter, aiBrain)
+    -- No pathability checks are run here
+    -- TODO: add orientation switch here
+    -- TODO: some kind of overlap check with self??
+    local start = PROFILER:Now()
+    for _, v in COORDS.negZ do
+        local coords = {loc[1], GetSurfaceHeight(loc[1], loc[3]), loc[3]}
+        if aiBrain:CanBuildStructureAt(bp.BlueprintID,coords) and deconflicter:Check(coords,bp) then
+            PROFILER:Add("FindBuildCoordinates",PROFILER:Now()-start)
+            return coords
+        end
+    end
+    -- Fail to find a location
+    PROFILER:Add("FindBuildCoordinates",PROFILER:Now()-start)
+    return nil
+end
+
+Location = Class({
+    Init = function(self,x,z,radius)
+        self.x = x
+        self.z = z
+        self.radius = radius
+    end
+})
 
 Deconflicter = Class({
     Init = function(self)
