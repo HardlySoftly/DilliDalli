@@ -1,4 +1,4 @@
-local SplitString = import('/mods/DilliDalli/lua/FlowAI/framework/utils.lua').SplitString
+local SplitString = import('/mods/DilliDalli/lua/FlowAI/framework/utils/SplitString.lua').SplitString
 
 -- These are global, so please don't mutate them from each AI instance.  Please.
 local ENGIE_MOD_FLAG = false
