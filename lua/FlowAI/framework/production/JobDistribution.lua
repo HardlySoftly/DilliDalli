@@ -44,7 +44,7 @@ Job = Class({
         self.data = {
             -- List of job executors
             executors = {},
-            numJobExecutors = 0,
+            numExecutors = 0,
             -- Theoretical spend (assigned builpower * mass rate)
             theoreticalSpend = 0,
             -- Actual spend as measured
@@ -66,7 +66,7 @@ JobDistributor = Class({
         self.numMobileJobs = 0
 
         -- Factory jobs
-        self.facotryJobs = {}
+        self.factoryJobs = {}
         self.numFactoryJobs = 0
 
         -- Upgrade jobs
@@ -80,19 +80,73 @@ JobDistributor = Class({
         job.data.category = "mobile"
     end,
 
-    JobPrioritisationThread = function(self)
+    JobPrioritisation = function(self)
         -- Sort jobs based on priorities and so forth
         -- TODO
     end,
 
-    DistributionThread = function(self)
+    JobDistribution = function(self)
         -- Distributes idle workers to jobs
         -- TODO
     end,
 
-    ExecutorMonitoringThread = function(self)
-        -- Close out completed jobs and attempt to reassign workers.  Add to idle queue if no jobs found.
-        -- TODO
+    ExecutorMonitoring = function(self)
+        -- Close out completed jobs and attempt to reassign workers.
+        for _, jobTypeDict in { {self.mobileJobs, false}, {self.factoryJobs, true}, {self.upgradeJobs, true} } do
+            local jobs = jobTypeDict[1]
+            local isStructureJob = jobTypeDict[2]
+            for _, job in jobs do
+                local i = 1
+                while i <= job.data.numExecutors do
+                    local executor = job.data.executors[i]
+                    if executor.complete then
+                        -- Update job data state
+                        if executor.success then
+                            job.specification.count = job.specification.count - 1
+                        else
+                            WARN('Job failed for reason: '..tostring(executor.reason))
+                        end
+                        -- TODO: update spend stats here
+                        -- Reassign engies
+                        if (not isStructureJob) and executor.mainEngie then
+                            self:FindMobileJob(executor.mainEngie)
+                        elseif isStructureJob then
+                            -- TODO: support fac and upgrade jobs
+                        end
+                        for _, engie in executor.subsidiaryEngies do
+                            self:FindMobileJob(engie)
+                        end
+                        -- Clear out the executor
+                        if i < job.data.numExecutors then
+                            job.data.executors[i] = job.data.executors[job.data.numExecutors]
+                        end
+                        job.data.executors[job.data.numExecutors] = nil
+                        job.data.numExecutors = job.data.numExecutors - 1
+                    else
+                        i = i+1
+                    end
+                end
+            end
+        end
+    end,
+
+    FindMobileJob = function(self,engie)
+    end,
+
+    FindStructureJob = function(self)
+    end,
+
+    ControlThread = function(self)
+        -- Global coordinator of stuff.
+        local i = 0
+        while self.brain:IsAlive() do
+            self:ExecutorMonitoring()
+            if i%20 == 0 then
+                self:JobPrioritisation()
+                self:JobDistribution()
+            end
+            WaitTicks(1)
+        end
     end,
 
     Run = function(self)
