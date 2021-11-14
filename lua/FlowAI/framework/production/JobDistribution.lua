@@ -30,8 +30,8 @@ Job = Class({
             location = nil,
             -- Whether to delete this job or not
             self.keep = true
-            -- Manually assigned priority in the range [0,1], useful for things like mass extractor jobs
-            self.priority = 0
+            -- Swap to count based priority.  Useful for things like mass extractor jobs
+            self.prioritySwitch = 0
         }
         -- Now that we've initialised with some default values, replace with provided values if they exist
         if specification then
@@ -49,6 +49,9 @@ Job = Class({
             theoreticalSpend = 0,
             -- Actual spend as measured
             actualSpend = 0,
+            -- Stats for measuring the assist ratio effectively
+            assistBuildpower = 0,
+            totalBuildpower = 0,
             -- Spend ratio (cached version of actualSpend/theoreticalSpend, used for estimating loss of spend when a job completes)
             spendRatio = 1,
             -- Job category
@@ -78,11 +81,6 @@ JobDistributor = Class({
         self.numMobileJobs = self.numMobileJobs + 1
         self.mobileJobs[self.numMobileJobs] = job
         job.data.category = "mobile"
-    end,
-
-    JobPrioritisation = function(self)
-        -- Sort jobs based on priorities and so forth
-        -- TODO
     end,
 
     JobDistribution = function(self)
@@ -130,10 +128,159 @@ JobDistributor = Class({
         end
     end,
 
-    FindMobileJob = function(self,engie)
+    JobMonitoring = function(self)
+        -- Kill any dead job references.  May leave executors orphaned, but oh well.
+        local i = 1
+        while i <= self.numMobileJobs do
+            if not self.mobileJobs[i].specification.keep then
+                if i < self.numMobileJobs then
+                    self.mobileJobs[i] = self.mobileJobs[self.numMobileJobs]
+                else
+                    self.mobileJobs[i] = nil
+                end
+                self.numMobileJobs = self.numMobileJobs - 1
+            else
+                i = i + 1
+            end
+        end
+        i = 1
+        while i <= self.numFactoryJobs do
+            if not self.factoryJobs[i].specification.keep then
+                if i < self.numFactoryJobs then
+                    self.factoryJobs[i] = self.factoryJobs[self.numFactoryJobs]
+                else
+                    self.factoryJobs[i] = nil
+                end
+                self.numFactoryJobs = self.numFactoryJobs - 1
+            else
+                i = i + 1
+            end
+        end
+        i = 1
+        while i <= self.numUpgradeJobs do
+            if not self.upgradeJobs[i].specification.keep then
+                if i < self.numUpgradeJobs then
+                    self.upgradeJobs[i] = self.upgradeJobs[self.numUpgradeJobs]
+                else
+                    self.upgradeJobs[i] = nil
+                end
+                self.numUpgradeJobs = self.numUpgradeJobs - 1
+            else
+                i = i + 1
+            end
+        end
     end,
 
-    FindStructureJob = function(self)
+    FindMobileJob = function(self,engie)
+        local bestJob = nil
+        local bestExecutor = nil
+        local bestPriority = 0
+        for _, job in self.mobileJobs do
+            local priority = self:StartExecutorPriority(job,engie)
+            if priority > bestPriority then
+                bestJob = job
+                bestExecutor = nil
+                bestPriority = priority
+            end
+            for _, executor in job.data.executors do
+                local priority = self:AssistExecutorPriority(job,executor,engie)
+                if priority > bestPriority then
+                    bestJob = job
+                    bestExecutor = executor
+                    bestPriority = priority
+                end
+            end
+        end
+        for _, job in self.factoryJobs do
+            for _, executor in job.data.executors do
+                local priority = self:AssistExecutorPriority(job,executor,engie)
+                if priority > bestPriority then
+                    bestJob = job
+                    bestExecutor = executor
+                    bestPriority = priority
+                end
+            end
+        end
+        for _, job in self.upgradeJobs do
+            for _, executor in job.data.executors do
+                local priority = self:AssistExecutorPriority(job,executor,engie)
+                if priority > bestPriority then
+                    bestJob = job
+                    bestExecutor = executor
+                    bestPriority = priority
+                end
+            end
+        end
+        if bestPriority > 0 then
+            if bestExecutor then
+                self:AssistExecutor(bestJob,bestExecutor,engie)
+            else
+                self:StartMobileExecutor(bestJob,engie)
+            end
+        end
+    end,
+
+    FindStructureJob = function(self,structure)
+        local bestJob = nil
+        local bestPriority = 0
+        local upgradeJob = false
+        for _, job in self.factoryJobs do
+            local priority = self:StartExecutorPriority(job,engie)
+            if priority > bestPriority then
+                bestJob = job
+                bestPriority = priority
+            end
+        end
+        for _, job in self.upgradeJobs do
+            local priority = self:StartExecutorPriority(job,engie)
+            if priority > bestPriority then
+                bestJob = job
+                bestPriority = priority
+                upgradeJob = true
+            end
+        end
+        if bestPriority > 0 then
+            if upgradeJob then
+                self:StartUpgradeExecutor(bestJob,structure)
+            else
+                self:StartFactoryExecutor(bestJob,structure)
+            end
+        end
+    end,
+
+    StartMobileExecutorPriority = function(self,job,engie)
+        -- Return the priority for starting an executor for 'job' with 'engie'.
+        -- TODO
+    end,
+
+    StartStructureExecutorPriority = function(self,job,builder)
+        -- Return the priority for starting an executor for 'job' with 'builder'.
+        -- TODO
+    end,
+
+    AssistExecutorPriority = function(self,job,executor,engie)
+        -- Return the priority for assisting 'executor' with 'engie' (under the given job).
+        -- TODO
+    end,
+
+    StartMobileExecutor = function(self,job,engie)
+        -- Given an engineer and a job to start, create an executor (and maintain associated state).
+        -- TODO
+    end,
+
+    StartFactoryExecutor = function(self,job,factory)
+        -- Given an factory and a job to start, create an executor (and maintain associated state).
+        -- TODO
+    end,
+
+    StartUpgradeExecutor = function(self,job,structure)
+        -- Given a structure and a job to start, create an executor (and maintain associated state).
+        -- TODO
+    end,
+
+    AssistExecutor = function(self,job,executor,engie)
+        -- Get an engie to assist an existing executor
+        -- TODO
     end,
 
     ControlThread = function(self)
@@ -141,8 +288,9 @@ JobDistributor = Class({
         local i = 0
         while self.brain:IsAlive() do
             self:ExecutorMonitoring()
+            self:JobMonitoring()
             if i%20 == 0 then
-                self:JobPrioritisation()
+                -- Every X ticks reassign idle stuff to jobs where possible
                 self:JobDistribution()
             end
             WaitTicks(1)
