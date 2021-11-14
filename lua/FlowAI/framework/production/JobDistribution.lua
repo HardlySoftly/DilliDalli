@@ -83,12 +83,25 @@ JobDistributor = Class({
         job.data.category = "mobile"
     end,
 
+    AddFactoryJob = function(self, job)
+        self.numFactoryJobs = self.numFactoryJobs + 1
+        self.factoryJobs[self.numFactoryJobs] = job
+        job.data.category = "factory"
+    end,
+
+    AddUpgradeJob = function(self, job)
+        self.numUpgradeJobs = self.numUpgradeJobs + 1
+        self.upgradeJobs[self.numUpgradeJobs] = job
+        job.data.category = "upgrade"
+    end,
+
     JobDistribution = function(self)
         -- Distributes idle workers to jobs
         -- TODO
     end,
 
     ExecutorMonitoring = function(self)
+        local start = PROFILER:Now()
         -- Close out completed jobs and attempt to reassign workers.
         for _, jobTypeDict in { {self.mobileJobs, false}, {self.factoryJobs, true}, {self.upgradeJobs, true} } do
             local jobs = jobTypeDict[1]
@@ -126,10 +139,12 @@ JobDistributor = Class({
                 end
             end
         end
+        PROFILER:Add("JobDistributor:ExecutorMonitoring",PROFILER:Now()-start)
     end,
 
     JobMonitoring = function(self)
         -- Kill any dead job references.  May leave executors orphaned, but oh well.
+        local start = PROFILER:Now()
         local i = 1
         while i <= self.numMobileJobs do
             if not self.mobileJobs[i].specification.keep then
@@ -169,9 +184,11 @@ JobDistributor = Class({
                 i = i + 1
             end
         end
+        PROFILER:Add("JobDistributor:JobMonitoring",PROFILER:Now()-start)
     end,
 
     FindMobileJob = function(self,engie)
+        local start = PROFILER:Now()
         local bestJob = nil
         local bestExecutor = nil
         local bestPriority = 0
@@ -218,9 +235,11 @@ JobDistributor = Class({
                 self:StartMobileExecutor(bestJob,engie)
             end
         end
+        PROFILER:Add("JobDistributor:FindMobileJob",PROFILER:Now()-start)
     end,
 
     FindStructureJob = function(self,structure)
+        local start = PROFILER:Now()
         local bestJob = nil
         local bestPriority = 0
         local upgradeJob = false
@@ -246,6 +265,7 @@ JobDistributor = Class({
                 self:StartFactoryExecutor(bestJob,structure)
             end
         end
+        PROFILER:Add("JobDistributor:FindStructureJob",PROFILER:Now()-start)
     end,
 
     StartMobileExecutorPriority = function(self,job,engie)
