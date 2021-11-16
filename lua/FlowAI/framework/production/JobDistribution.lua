@@ -40,18 +40,22 @@ Job = Class({
             end
         end
 
-        -- Internally maintained state, but can be accessed by others for feedback
+        local bp = GetUnitBlueprintByName(self.specification['unitBlueprintID'])
+
+        -- Job state, maintained between the JobDistribution and JobExecution classes.  Can be read-only accessed otherwise for feedback reasons.
         self.data = {
             -- List of job executors
             executors = {},
             numExecutors = 0,
+            -- Spend rate, useful for guessing at buildpower requirements.
+            massSpendRate = bp.Economy.BuildCostMass/bp.Economy.BuildTime,
             -- Theoretical spend (assigned builpower * mass rate)
             theoreticalSpend = 0,
             -- Actual spend as measured
             actualSpend = 0,
             -- Stats for measuring the assist ratio effectively
-            assistBuildpower = 0,
             totalBuildpower = 0,
+            assistBuildpower = 0,
             -- Spend ratio (cached version of actualSpend/theoreticalSpend, used for estimating loss of spend when a job completes)
             spendRatio = 1,
             -- Job category
@@ -112,20 +116,17 @@ JobDistributor = Class({
                     local executor = job.data.executors[i]
                     if executor.complete then
                         -- Update job data state
-                        if executor.success then
-                            job.specification.count = job.specification.count - 1
-                        else
-                            WARN('Job failed for reason: '..tostring(executor.reason))
-                        end
-                        -- TODO: update spend stats here
+                        executor:UpdateJobState(job)
                         -- Reassign engies
-                        if (not isStructureJob) and executor.mainEngie then
+                        if (not isStructureJob) and executor.mainEngie and (not executor.mainEngie.Dead) then
                             self:FindMobileJob(executor.mainEngie)
                         elseif isStructureJob then
                             -- TODO: support fac and upgrade jobs
                         end
                         for _, engie in executor.subsidiaryEngies do
-                            self:FindMobileJob(engie)
+                            if engie and (not engie.Dead) then
+                                self:FindMobileJob(engie)
+                            end
                         end
                         -- Clear out the executor
                         if i < job.data.numExecutors then
@@ -188,6 +189,7 @@ JobDistributor = Class({
     end,
 
     FindMobileJob = function(self,engie)
+        -- Precondition: engie is not dead!
         local start = PROFILER:Now()
         local bestJob = nil
         local bestExecutor = nil
@@ -239,6 +241,7 @@ JobDistributor = Class({
     end,
 
     FindStructureJob = function(self,structure)
+        -- TODO: Check deadness
         local start = PROFILER:Now()
         local bestJob = nil
         local bestPriority = 0
@@ -270,37 +273,52 @@ JobDistributor = Class({
 
     StartMobileExecutorPriority = function(self,job,engie)
         -- Return the priority for starting an executor for 'job' with 'engie'.
-        -- TODO
+        -- TODO: Swap to better estimates using actual and theoretical mass spends
+        -- TODO: Check if it can actually build the thing.  Return -1 if not.
+        if job.specification.prioritySwitch then
+            return 1 - (job.data.numExecutors+1)/math.min(job.specification.count,job.specification.duplicates)
+        else
+            local bp = engie:GetBlueprint()
+            return 1 - ((job.data.totalBuildpower+bp.Economy.BuildRate)*job.data.massSpendRate)/job.specification.targetSpend
+        end
     end,
 
     StartStructureExecutorPriority = function(self,job,builder)
         -- Return the priority for starting an executor for 'job' with 'builder'.
         -- TODO
+        return -1
     end,
 
     AssistExecutorPriority = function(self,job,executor,engie)
         -- Return the priority for assisting 'executor' with 'engie' (under the given job).
         -- TODO
+        return -1
     end,
 
     StartMobileExecutor = function(self,job,engie)
         -- Given an engineer and a job to start, create an executor (and maintain associated state).
         -- TODO
+        local bp = engie:GetBlueprint()
+        job.data.totalBuildpower = job.data.totalBuildpower + bp.Economy.BuildRate
+        return -1
     end,
 
     StartFactoryExecutor = function(self,job,factory)
         -- Given an factory and a job to start, create an executor (and maintain associated state).
         -- TODO
+        return -1
     end,
 
     StartUpgradeExecutor = function(self,job,structure)
         -- Given a structure and a job to start, create an executor (and maintain associated state).
         -- TODO
+        return -1
     end,
 
     AssistExecutor = function(self,job,executor,engie)
         -- Get an engie to assist an existing executor
         -- TODO
+        return -1
     end,
 
     ControlThread = function(self)
@@ -318,15 +336,13 @@ JobDistributor = Class({
     end,
 
     Run = function(self)
-        self:ForkThread(self.JobPrioritisationThread)
-        self:ForkThread(self.DistributionThread)
-        self:ForkThread(self.ExecutorMonitoringThread)
+        self:ForkThread(self.ControlThread)
     end,
 
     ForkThread = function(self, fn, ...)
         if fn then
             local thread = ForkThread(fn, self, unpack(arg))
-            self.brain.Trash:Add(thread)
+            self.brain.trash:Add(thread)
             return thread
         else
             return nil

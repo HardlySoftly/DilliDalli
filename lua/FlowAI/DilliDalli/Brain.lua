@@ -1,7 +1,17 @@
+local Deconflicter = import('/mods/DilliDalli/lua/FlowAI/framework/production/Locations.lua').Deconflicter
+local CommandInterface = import('/mods/DilliDalli/lua/FlowAI/framework/CommandInterface.lua').CommandInterface
+
 Brain = Class({
     Init = function(self,aiBrain)
         self.aiBrain = aiBrain
-        self.Trash = TrashBag()
+        -- For putting threads in
+        self.trash = TrashBag()
+        -- For preventing overlapping new building placements
+        self.deconflicter = Deconflicter()
+        deconflicter:Init()
+        -- For monitoring and executing all commands going from the AI to the Sim
+        self.commandInterface = CommandInterface()
+        -- Now to start up the AI
         self:ForkThread(self.Initialise)
     end,
 
@@ -18,7 +28,7 @@ Brain = Class({
     ForkThread = function(self, fn, ...)
         if fn then
             local thread = ForkThread(fn, self, unpack(arg))
-            self.Trash:Add(thread)
+            self.trash:Add(thread)
             return thread
         else
             return nil

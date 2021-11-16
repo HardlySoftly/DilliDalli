@@ -14,8 +14,11 @@ JobExecutor = Class({
 })
 
 MobileJobExecutor = Class(JobExecutor) {
-    Init = function(self,builder,toBuildID,buildLocation,deconflicter,commandInterface,brain)
-        self.brain = brain
+    Init = function(self,builder,job,buildLocation,brain)
+        -- The job we're doing.  This class is responsible for some state maintenance here.
+        self.job = job
+        -- Somwhere to dump old threads
+        self.trash = brain.trash
         -- Some flags we'll need
         self.complete = false
         self.success = false
@@ -23,7 +26,7 @@ MobileJobExecutor = Class(JobExecutor) {
         self.reason = nil
         -- The thing we're building - while this is nil we assume the job is unstarted
         self.target = nil
-        self.toBuildID = toBuildID
+        self.toBuildID = job.specification.unitBlueprintID
         -- The engie that can start the jobs
         self.builder = builder
         -- The engie to assist (if not the target)
@@ -31,9 +34,9 @@ MobileJobExecutor = Class(JobExecutor) {
         -- The place to buildLocation
         self.buildLocation = buildLocation
         -- Build location deconfliction
-        self.deconflicter = deconflicter
+        self.deconflicter = brain.deconflicter
         -- Command Interface
-        self.commandInterface = commandInterface
+        self.commandInterface = brain.commandInterface
         -- All engies excepting the main engie
         self.subsidiaryEngies = {}
         self.numEngies = 1
@@ -50,6 +53,15 @@ MobileJobExecutor = Class(JobExecutor) {
 
     ReduceSpend = function(self,targetSpend)
         -- TODO
+    end,
+
+    UpdateJobState = function(self)
+        if self.success then
+            self.job.specification.count = self.job.specification.count - 1
+        else
+            WARN('Job failed for reason: '..tostring(self.reason))
+        end
+        -- TODO: update spend stats here
     end,
 
     JobThread = function(self)
@@ -165,7 +177,7 @@ MobileJobExecutor = Class(JobExecutor) {
     ForkThread = function(self, fn, ...)
         if fn then
             local thread = ForkThread(fn, self, unpack(arg))
-            self.brain.Trash:Add(thread)
+            self.trash:Add(thread)
             return thread
         else
             return nil
