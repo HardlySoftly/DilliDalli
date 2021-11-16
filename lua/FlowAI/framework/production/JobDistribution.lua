@@ -4,6 +4,9 @@
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
+-- Use this so that priority 0 jobs can still be started (e.g. hitting count/spend limit)
+local SMALL_NEGATIVE = -0.0000001
+
 Job = Class({
     Init = function(self, specification)
         -- 'Specification' for the job, describing exactly what kind of thing should be executed
@@ -65,8 +68,9 @@ Job = Class({
 })
 
 JobDistributor = Class({
-    Init = function(self, brain)
+    Init = function(self, brain, map)
         self.brain = brain
+        self.map = map
 
         -- Mobile jobs
         self.mobileJobs = {}
@@ -193,7 +197,7 @@ JobDistributor = Class({
         local start = PROFILER:Now()
         local bestJob = nil
         local bestExecutor = nil
-        local bestPriority = 0
+        local bestPriority = SMALL_NEGATIVE
         for _, job in self.mobileJobs do
             local priority = self:StartExecutorPriority(job,engie)
             if priority > bestPriority then
@@ -244,7 +248,7 @@ JobDistributor = Class({
         -- TODO: Check deadness
         local start = PROFILER:Now()
         local bestJob = nil
-        local bestPriority = 0
+        local bestPriority = SMALL_NEGATIVE
         local upgradeJob = false
         for _, job in self.factoryJobs do
             local priority = self:StartExecutorPriority(job,engie)
@@ -272,13 +276,21 @@ JobDistributor = Class({
     end,
 
     StartMobileExecutorPriority = function(self,job,engie)
-        -- Return the priority for starting an executor for 'job' with 'engie'.
+        -- Return the priority for starting an executor for 'job' with 'engie'.  Negative priority means this job should not be attempted.
         -- TODO: Swap to better estimates using actual and theoretical mass spends
-        -- TODO: Check if it can actually build the thing.  Return -1 if not.
+        -- Check if this job can be made by this engie
+        local bp = engie:GetBlueprint()
+        if job.specification.builderBlueprintID and (not job.specification.builderBlueprintID == bp.BlueprintId) then
+            return -1
+        end
+        if not engie:CanBuild(job.specification.unitBlueprintID then
+            return -1
+        end
+        -- TODO: Check component requirements here
+        -- Calculate and return priority of this job.
         if job.specification.prioritySwitch then
             return 1 - (job.data.numExecutors+1)/math.min(job.specification.count,job.specification.duplicates)
         else
-            local bp = engie:GetBlueprint()
             return 1 - ((job.data.totalBuildpower+bp.Economy.BuildRate)*job.data.massSpendRate)/job.specification.targetSpend
         end
     end,
