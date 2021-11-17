@@ -1,5 +1,8 @@
-local Deconflicter = import('/mods/DilliDalli/lua/FlowAI/framework/production/Locations.lua').Deconflicter
+local BuildDeconfliction = import('/mods/DilliDalli/lua/FlowAI/framework/production/Locations.lua').BuildDeconfliction
 local CommandInterface = import('/mods/DilliDalli/lua/FlowAI/framework/CommandInterface.lua').CommandInterface
+local JobDistributor = import('/mods/DilliDalli/lua/FlowAI/framework/production/JobDistribution.lua').JobDistributor
+
+local Job = import('/mods/DilliDalli/lua/FlowAI/framework/production/JobDistribution.lua').Job
 
 Brain = Class({
     Init = function(self,aiBrain)
@@ -7,10 +10,13 @@ Brain = Class({
         -- For putting threads in
         self.trash = TrashBag()
         -- For preventing overlapping new building placements
-        self.deconflicter = Deconflicter()
-        deconflicter:Init()
+        self.deconfliction = BuildDeconfliction()
+        self.deconfliction:Init()
         -- For monitoring and executing all commands going from the AI to the Sim
         self.commandInterface = CommandInterface()
+        -- For distributing jobs TODO: map support
+        self.jobDistributor = JobDistributor()
+        self.jobDistributor:Init(self,nil)
         -- Now to start up the AI
         self:ForkThread(self.Initialise)
     end,
@@ -18,6 +24,11 @@ Brain = Class({
     Initialise = function(self)
         -- Allow sim setup and initialisation
         WaitSeconds(5)
+        -- Some setup...
+        local pgenJob = Job()
+        pgenJob:Init({targetSpend = 100000, count = 100000, duplicates = 100000, unitBlueprintID = 'uab1101'})
+        self.jobDistributor:AddMobileJob(pgenJob)
+        self.jobDistributor:Run()
         LOG("DilliDalli Brain ready...")
     end,
 

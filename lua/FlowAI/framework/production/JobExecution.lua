@@ -34,12 +34,15 @@ MobileJobExecutor = Class(JobExecutor) {
         -- The place to buildLocation
         self.buildLocation = buildLocation
         -- Build location deconfliction
-        self.deconflicter = brain.deconflicter
+        self.deconfliction = brain.deconfliction
+        self.buildID = nil
         -- Command Interface
         self.commandInterface = brain.commandInterface
         -- All engies excepting the main engie
         self.subsidiaryEngies = {}
         self.numEngies = 1
+
+        -- TODO: Update job state here
     end,
 
     AddEngineer = function(self,assister)
@@ -55,7 +58,7 @@ MobileJobExecutor = Class(JobExecutor) {
         -- TODO
     end,
 
-    UpdateJobState = function(self)
+    CompleteJob = function(self)
         if self.success then
             self.job.specification.count = self.job.specification.count - 1
         else
@@ -69,7 +72,7 @@ MobileJobExecutor = Class(JobExecutor) {
         local reissue = true
         local started = false
         -- Initialise job
-        self.deconflicter:Register(self.buildLocation,GetUnitBlueprintByName(self.toBuildID))
+        self.buildID = self.deconfliction:Register(self.buildLocation,GetUnitBlueprintByName(self.toBuildID))
         self.commandInterface:IssueBuildMobile({self.mainEngie},self.buildLocation,self.toBuildID)
         PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
         WaitTicks(1)
@@ -166,7 +169,7 @@ MobileJobExecutor = Class(JobExecutor) {
             WaitTicks(1)
         end
         start = PROFILER:Now()
-        self.deconflicter:Clear(self.buildLocation)
+        self.deconfliction:Clear(self.buildID)
         PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
     end,
 

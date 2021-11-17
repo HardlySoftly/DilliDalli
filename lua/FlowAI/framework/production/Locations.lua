@@ -13,7 +13,7 @@ local _OFFSETS = {
 }
 
 -- What sorcery is this??
-local _ORDER = {  0,  1,  2,  3,  5,  4,  7,  8,  9, 11,
+local _ORDER = {  3,  5,  4,  7,  8,  9,  0,  1,  2, 11,
                   6, 14, 15, 13, 17, 19, 20, 23, 24, 27,
                  -- Does the author just not know how to count??
                  29, 10, 26, 31, 34, 35, 21, 39, 41, 32,
@@ -36,18 +36,18 @@ function InitialiseCoords()
             end
             local resPosZ = GenerateCoords(_OFFSETS.posZ[last][1],_OFFSETS.posZ[last][2],last,_OFFSETS.posZ, radius)
             for _, coord in resPosZ do
-                sizes[1] = sizes[1] + 1
-                COORDS.posZ[sizes[1]] = coord
+                sizes[2] = sizes[2] + 1
+                COORDS.posZ[sizes[2]] = coord
             end
             local resNegX = GenerateCoords(_OFFSETS.negX[last][1],_OFFSETS.negX[last][2],last,_OFFSETS.negX, radius)
             for _, coord in resNegX do
-                sizes[1] = sizes[1] + 1
-                COORDS.negX[sizes[1]] = coord
+                sizes[3] = sizes[3] + 1
+                COORDS.negX[sizes[3]] = coord
             end
             local resPosX = GenerateCoords(_OFFSETS.posX[last][1],_OFFSETS.posX[last][2],last,_OFFSETS.posX, radius)
             for _, coord in resPosX do
-                sizes[1] = sizes[1] + 1
-                COORDS.posX[sizes[1]] = coord
+                sizes[4] = sizes[4] + 1
+                COORDS.posX[sizes[4]] = coord
             end
         end
     end
@@ -70,46 +70,32 @@ function GenerateCoords(x, z, last, instructions, radius)
     return coords
 end
 
-function FindBuildCoordinates(loc, bp, deconflicter, aiBrain)
-    -- No pathability checks are run here
-    -- TODO: add orientation switch here
-    -- TODO: some kind of overlap check with self??
-    local start = PROFILER:Now()
-    for _, v in COORDS.negZ do
-        local coords = {loc[1], GetSurfaceHeight(loc[1], loc[3]), loc[3]}
-        if aiBrain:CanBuildStructureAt(bp.BlueprintID,coords) and deconflicter:Check(coords,bp) then
-            PROFILER:Add("FindBuildCoordinates",PROFILER:Now()-start)
-            return coords
-        end
-    end
-    -- Fail to find a location
-    PROFILER:Add("FindBuildCoordinates",PROFILER:Now()-start)
-    return nil
-end
-
 Location = Class({
     Init = function(self,x,z,radius)
         self.x = x
         self.z = z
         self.radius = radius
-    end
+    end,
 })
 
-Deconflicter = Class({
+BuildDeconfliction = Class({
     Init = function(self)
         self.pendingStructures = {}
         self.numPending = 0
+        self.nextID = 1
     end,
 
     Register = function(self, loc, bp)
         self.numPending = self.numPending + 1
-        self.pendingStructures[self.numPending] = { pos = loc, bp = bp }
+        self.pendingStructures[self.numPending] = { pos = loc, bp = bp, id = self.nextID }
+        self.nextID = self.nextID + 1
+        return self.nextID - 1
     end,
 
-    Clear = function(self, loc)
+    Clear = function(self, id)
         local i = 1
         while i < self.numPending do
-            if (self.pendingStructures[i].pos[1] == loc[1]) and (self.pendingStructures[i].pos[3] == loc[3]) then
+            if self.pendingStructures[i].id == id then
                 self.pendingStructures[i] = self.pendingStructures[self.numPending]
                 self.numPending = self.numPending - 1
                 return
@@ -122,16 +108,17 @@ Deconflicter = Class({
 
     Check = function(self, loc, bp)
         -- TODO: Fix this, noticed it's not working quite right (copied this function from old BaseController, with attached warning)
+        -- EDIT TODO: Can confirm this just doesn't work.
         -- Checks if any planned buildings overlap with this building.  Return true if they do not.
-        local cornerX0 = location[1]+bp.SizeX/2
-        local cornerZ0 = location[3]+bp.SizeZ/2
-        local cornerX1 = location[1]-bp.SizeX/2
-        local cornerZ1 = location[3]-bp.SizeZ/2
+        local cornerX0 = loc[1]+bp.SizeX/2
+        local cornerZ0 = loc[3]+bp.SizeZ/2
+        local cornerX1 = loc[1]-bp.SizeX/2
+        local cornerZ1 = loc[3]-bp.SizeZ/2
         local i = 1
         while i <= self.numPending do
             v = self.pendingStructures[i]
             -- If overlap, return false
-            if location[1] == v.pos[1] and location[3] == v.pos[3] then
+            if loc[1] == v.pos[1] and loc[3] == v.pos[3] then
                 -- Location is the same, return false
                 return false
             elseif cornerX0 >= v.pos[1]-v.bp.SizeX/2 and cornerX0 <= v.pos[1]+v.bp.SizeX/2 and cornerZ0 >= v.pos[3]-v.bp.SizeZ/2 and cornerZ0 <= v.pos[3]+v.bp.SizeZ/2 then
@@ -150,5 +137,23 @@ Deconflicter = Class({
             i = i + 1
         end
         return true
-    end
+    end,
+
+    FindBuildCoordinates = function(self, loc, bpID, aiBrain)
+        -- No pathability checks are run here
+        -- TODO: add orientation switch here
+        -- TODO: some kind of overlap check with self??
+        local start = PROFILER:Now()
+        local bp = GetUnitBlueprintByName(bpID)
+        for _, v in COORDS.negZ do
+            local coords = {loc[1]+v[1], GetSurfaceHeight(loc[1]+v[1], loc[3]+v[2]), loc[3]+v[2]}
+            if aiBrain:CanBuildStructureAt(bpID,coords) and self:Check(coords,bp) then
+                PROFILER:Add("FindBuildCoordinates",PROFILER:Now()-start)
+                return coords
+            end
+        end
+        -- Fail to find a location
+        PROFILER:Add("FindBuildCoordinates",PROFILER:Now()-start)
+        return nil
+    end,
 })

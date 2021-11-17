@@ -4,6 +4,8 @@
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
+local MobileJobExecutor = import('/mods/DilliDalli/lua/FlowAI/framework/production/JobExecution.lua').MobileJobExecutor
+
 -- Use this so that priority 0 jobs can still be started (e.g. hitting count/spend limit)
 local SMALL_NEGATIVE = -0.0000001
 
@@ -29,12 +31,14 @@ Job = Class({
             assist = true,
             -- Max ratio of assisters to builders, -1 => no cap.
             assistRatio = -1,
-            -- Location to build at (nil if no location requirements)
+            -- Location to build at (nil if no specific location requirements)
             location = nil,
+            -- Safety requirements for building (nil if no specific requirement)
+            safety = nil,
             -- Whether to delete this job or not
-            self.keep = true
+            keep = true,
             -- Swap to count based priority.  Useful for things like mass extractor jobs
-            self.prioritySwitch = 0
+            prioritySwitch = 0,
         }
         -- Now that we've initialised with some default values, replace with provided values if they exist
         if specification then
@@ -43,7 +47,7 @@ Job = Class({
             end
         end
 
-        local bp = GetUnitBlueprintByName(self.specification['unitBlueprintID'])
+        local bp = GetUnitBlueprintByName(self.specification.unitBlueprintID)
 
         -- Job state, maintained between the JobDistribution and JobExecution classes.  Can be read-only accessed otherwise for feedback reasons.
         self.data = {
@@ -105,7 +109,16 @@ JobDistributor = Class({
 
     JobDistribution = function(self)
         -- Distributes idle workers to jobs
-        -- TODO
+        -- TODO: Improve this
+        local units = self.brain.aiBrain:GetListOfUnits(categories.MOBILE*categories.ENGINEER,false,true)
+        for _, v in units do
+            if not v.FlowAI then
+                v.FlowAI = {}
+            end
+            if not v.FlowAI.ProductionAssigned then
+                self:FindMobileJob(v)
+            end
+        end
     end,
 
     ExecutorMonitoring = function(self)
@@ -120,7 +133,7 @@ JobDistributor = Class({
                     local executor = job.data.executors[i]
                     if executor.complete then
                         -- Update job data state
-                        executor:UpdateJobState(job)
+                        executor:CompleteJob(job)
                         -- Reassign engies
                         if (not isStructureJob) and executor.mainEngie and (not executor.mainEngie.Dead) then
                             self:FindMobileJob(executor.mainEngie)
@@ -195,11 +208,12 @@ JobDistributor = Class({
     FindMobileJob = function(self,engie)
         -- Precondition: engie is not dead!
         local start = PROFILER:Now()
+        engie.FlowAI.ProductionAssigned = false
         local bestJob = nil
         local bestExecutor = nil
         local bestPriority = SMALL_NEGATIVE
         for _, job in self.mobileJobs do
-            local priority = self:StartExecutorPriority(job,engie)
+            local priority = self:StartMobileExecutorPriority(job,engie)
             if priority > bestPriority then
                 bestJob = job
                 bestExecutor = nil
@@ -247,6 +261,7 @@ JobDistributor = Class({
     FindStructureJob = function(self,structure)
         -- TODO: Check deadness
         local start = PROFILER:Now()
+        structure.FlowAI.ProductionAssigned = false
         local bestJob = nil
         local bestPriority = SMALL_NEGATIVE
         local upgradeJob = false
@@ -283,7 +298,13 @@ JobDistributor = Class({
         if job.specification.builderBlueprintID and (not job.specification.builderBlueprintID == bp.BlueprintId) then
             return -1
         end
-        if not engie:CanBuild(job.specification.unitBlueprintID then
+        if not engie:CanBuild(job.specification.unitBlueprintID) then
+            return -1
+        end
+        if job.data.numExecutors >= job.specification.duplicates then
+            return -1
+        end
+        if job.data.numExecutors >= job.specification.count then
             return -1
         end
         -- TODO: Check component requirements here
@@ -307,30 +328,56 @@ JobDistributor = Class({
         return -1
     end,
 
+    FindBuildLocation = function(self,job,engie)
+        local initLocation = job.specification.location
+        if not initLocation then
+            local pos = engie:GetPosition()
+            return self.brain.deconfliction:FindBuildCoordinates({math.round(pos[1]) + Random(-3,3) + 0.5,0,math.round(pos[3]) + Random(-3,3) + 0.5},job.specification.unitBlueprintID,self.brain.aiBrain)
+        else
+            local pos = engieGetPosition()
+            local delta = {initLocation.x - pos[1], initLocation.z - pos[3]}
+            local dist = math.sqrt(delta[1]*delta[1] + delta[2]*delta[2])
+            local norm = math.min(initLocation.radius/dist,1)
+            return self.brain.deconfliction:FindBuildCoordinates({initLocation.x+delta[1]*norm + Random(-3,3) + 0.5,0,initLocation.z+delta[2]*norm + Random(-3,3) + 0.5},job.specification.unitBlueprintID,self.brain.aiBrain)
+        end
+    end,
+
+    FindMarkerBuildLocation = function(self,job,engie)
+        -- TODO
+        WARN("MARKERS NOT SUPPORTED SORRY BRUH")
+        return nil
+    end,
+
     StartMobileExecutor = function(self,job,engie)
         -- Given an engineer and a job to start, create an executor (and maintain associated state).
-        -- TODO
-        local bp = engie:GetBlueprint()
-        job.data.totalBuildpower = job.data.totalBuildpower + bp.Economy.BuildRate
-        return -1
+        local executor = MobileJobExecutor()
+        local buildLocation = nil
+        if job.specification.markerType then
+            buildLocation = self:FindMarkerBuildLocation(job,engie)
+        else
+            buildLocation = self:FindBuildLocation(job,engie)
+        end
+        -- TODO: handle failures to find build locations
+        executor:Init(engie,job,buildLocation,self.brain)
+        job.data.numExecutors = job.data.numExecutors + 1
+        job.data.executors[job.data.numExecutors] = executor
+        executor:Run()
+        engie.FlowAI.ProductionAssigned = true
     end,
 
     StartFactoryExecutor = function(self,job,factory)
         -- Given an factory and a job to start, create an executor (and maintain associated state).
         -- TODO
-        return -1
     end,
 
     StartUpgradeExecutor = function(self,job,structure)
         -- Given a structure and a job to start, create an executor (and maintain associated state).
         -- TODO
-        return -1
     end,
 
     AssistExecutor = function(self,job,executor,engie)
         -- Get an engie to assist an existing executor
         -- TODO
-        return -1
     end,
 
     ControlThread = function(self)
@@ -339,10 +386,11 @@ JobDistributor = Class({
         while self.brain:IsAlive() do
             self:ExecutorMonitoring()
             self:JobMonitoring()
-            if i%20 == 0 then
+            if math.mod(i,20) == 0 then
                 -- Every X ticks reassign idle stuff to jobs where possible
                 self:JobDistribution()
             end
+            i = i+1
             WaitTicks(1)
         end
     end,
