@@ -213,14 +213,14 @@ JobDistributor = Class({
         local bestExecutor = nil
         local bestPriority = SMALL_NEGATIVE
         for _, job in self.mobileJobs do
-            local priority = self:StartMobileExecutorPriority(job,engie)
+            local priority = self:StartExecutorPriority(job,engie)
             if priority > bestPriority then
                 bestJob = job
                 bestExecutor = nil
                 bestPriority = priority
             end
             for _, executor in job.data.executors do
-                local priority = self:AssistExecutorPriority(job,executor,engie)
+                local priority = self:StartAssistExecutorPriority(job,executor,engie)
                 if priority > bestPriority then
                     bestJob = job
                     bestExecutor = executor
@@ -230,7 +230,7 @@ JobDistributor = Class({
         end
         for _, job in self.factoryJobs do
             for _, executor in job.data.executors do
-                local priority = self:AssistExecutorPriority(job,executor,engie)
+                local priority = self:StartAssistExecutorPriority(job,executor,engie)
                 if priority > bestPriority then
                     bestJob = job
                     bestExecutor = executor
@@ -240,7 +240,7 @@ JobDistributor = Class({
         end
         for _, job in self.upgradeJobs do
             for _, executor in job.data.executors do
-                local priority = self:AssistExecutorPriority(job,executor,engie)
+                local priority = self:StartAssistExecutorPriority(job,executor,engie)
                 if priority > bestPriority then
                     bestJob = job
                     bestExecutor = executor
@@ -266,14 +266,14 @@ JobDistributor = Class({
         local bestPriority = SMALL_NEGATIVE
         local upgradeJob = false
         for _, job in self.factoryJobs do
-            local priority = self:StartExecutorPriority(job,engie)
+            local priority = self:StartExecutorPriority(job,structure)
             if priority > bestPriority then
                 bestJob = job
                 bestPriority = priority
             end
         end
         for _, job in self.upgradeJobs do
-            local priority = self:StartExecutorPriority(job,engie)
+            local priority = self:StartExecutorPriority(job,structure)
             if priority > bestPriority then
                 bestJob = job
                 bestPriority = priority
@@ -290,25 +290,29 @@ JobDistributor = Class({
         PROFILER:Add("JobDistributor:FindStructureJob",PROFILER:Now()-start)
     end,
 
-    StartMobileExecutorPriority = function(self,job,engie)
-        -- Return the priority for starting an executor for 'job' with 'engie'.  Negative priority means this job should not be attempted.
+    StartExecutorPriority = function(self,job,builder)
+        -- Return the priority for starting an executor for 'job' with 'builder'.  Negative priority means this job should not be attempted.
         -- TODO: Swap to better estimates using actual and theoretical mass spends
-        -- Check if this job can be made by this engie
-        local bp = engie:GetBlueprint()
+        -- Check if this job can be made by this builder
+        local bp = builder:GetBlueprint()
+        -- Check if the builder meets the specified builder in the job
         if job.specification.builderBlueprintID and (not job.specification.builderBlueprintID == bp.BlueprintId) then
             return -1
         end
-        if not engie:CanBuild(job.specification.unitBlueprintID) then
+        -- Check if the builder can build this thing
+        if not builder:CanBuild(job.specification.unitBlueprintID) then
             return -1
         end
+        -- Check if we are going to exceed the number of allowed jobs of this type
         if job.data.numExecutors >= job.specification.duplicates then
             return -1
         end
+        -- Check if we're going to make too many things of this type
         if job.data.numExecutors >= job.specification.count then
             return -1
         end
         -- TODO: Check component requirements here
-        -- Calculate and return priority of this job.
+        -- Calculate and return priority of this job.  Spend requirement checking is implicit (TODO).
         if job.specification.prioritySwitch then
             return 1 - (job.data.numExecutors+1)/math.min(job.specification.count,job.specification.duplicates)
         else
@@ -316,13 +320,7 @@ JobDistributor = Class({
         end
     end,
 
-    StartStructureExecutorPriority = function(self,job,builder)
-        -- Return the priority for starting an executor for 'job' with 'builder'.
-        -- TODO
-        return -1
-    end,
-
-    AssistExecutorPriority = function(self,job,executor,engie)
+    StartAssistExecutorPriority = function(self,job,executor,engie)
         -- Return the priority for assisting 'executor' with 'engie' (under the given job).
         -- TODO
         return -1
