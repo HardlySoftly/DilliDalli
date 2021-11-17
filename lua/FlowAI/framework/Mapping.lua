@@ -536,4 +536,3 @@ function SetPlayableArea(x0,z0,x1,z1)
     -- Fields of Isis is a bad map, I hate to be the one who has to say it.
     PLAYABLE_AREA = { x0, z0, x1, z1 }
 end
-

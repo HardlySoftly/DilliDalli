@@ -1,6 +1,6 @@
 DilliDalliYeOldeAIBrainClass = AIBrain
 
-local CreateDilliDalliBrain = import('/mods/DilliDalli/lua/FlowAI/DilliDalli/Brain.lua').CreateBrain
+local CreateDilliDalliBrain = import('/mods/DilliDalli/lua/FlowAI/framework/Brain.lua').CreateBrain
 
 AIBrain = Class(DilliDalliYeOldeAIBrainClass) {
     OnCreateAI = function(self, planName)

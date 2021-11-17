@@ -195,10 +195,3 @@ FactoryJobExecutor = Class(JobExecutor) {
 UpgradeJobExecutor = Class(JobExecutor) {
 
 }
-
-
--- Interface functions
-
-function CreateMobileJob(builder,toBuildID,location)
-    -- TODO
-end
