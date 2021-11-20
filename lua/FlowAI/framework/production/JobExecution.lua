@@ -4,16 +4,7 @@
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
-JobExecutor = Class({
-    -- Add support for assists here
-    Init = function(self,builder,toBuildID)
-    end,
-
-    GetSpendStats = function(self)
-    end,
-})
-
-MobileJobExecutor = Class(JobExecutor) {
+MobileJobExecutor = Class({
     Init = function(self,builder,job,buildLocation,brain)
         -- The job we're doing.  This class is responsible for some state maintenance here.
         self.job = job
@@ -29,6 +20,7 @@ MobileJobExecutor = Class(JobExecutor) {
         self.toBuildID = job.specification.unitBlueprintID
         -- The engie that can start the jobs
         self.builder = builder
+        self.builderRate = builder:GetBuildRate()
         -- The engie to assist (if not the target)
         self.mainEngie = builder
         -- The place to buildLocation
@@ -40,14 +32,20 @@ MobileJobExecutor = Class(JobExecutor) {
         self.commandInterface = brain.commandInterface
         -- All engies excepting the main engie
         self.subsidiaryEngies = {}
+        self.buildRates = {}
         self.numEngies = 1
 
-        -- TODO: Update job state here
+        -- Update job state here
+        self.job.data.totalBuildpower = self.job.data.totalBuildpower + self.builderRate
     end,
 
     AddEngineer = function(self,assister)
         self.subsidiaryEngies[self.numEngies] = assister
+        local buildRate = assister:GetBuildRate()
+        self.buildRates[self.numEngies] = buildRate
         self.numEngies = self.numEngies + 1
+        self.job.data.totalBuildpower = self.job.data.totalBuildpower + buildRate
+        self.job.data.assistBuildpower = self.job.data.assistBuildpower + buildRate
     end,
 
     GetEstimatedCompletionTime = function(self,includeBottlenecks)
@@ -59,12 +57,19 @@ MobileJobExecutor = Class(JobExecutor) {
     end,
 
     CompleteJob = function(self)
+        -- Called (by distribution layer) after completion, but not necessarily before the job thread ends.
+        -- Responsible for removing this executor's resources from the job state.
         if self.success then
             self.job.specification.count = self.job.specification.count - 1
         else
             WARN('Job failed for reason: '..tostring(self.reason))
         end
-        -- TODO: update spend stats here
+        self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
+        local i = 1
+        while i < self.numEngies do
+            self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.buildRates[i]
+            self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[i]
+        end
     end,
 
     JobThread = function(self)
@@ -98,6 +103,11 @@ MobileJobExecutor = Class(JobExecutor) {
                         self.numEngies = self.numEngies - 1
                         if i < self.numEngies then
                             self.subsidiaryEngies[i] = self.subsidiaryEngies[self.numEngies]
+                            self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.buildRates[i]
+                            self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[i]
+                            self.buildRates[i] = self.buildRates[self.numEngies]
+                            -- Commented out below as unecessary, this will tidy up on it's own.
+                            --self.subsidiaryEngies[self.numEngies] = nil
                         end
                     else
                         i = i + 1
@@ -110,7 +120,9 @@ MobileJobExecutor = Class(JobExecutor) {
                     if self.numEngies > 1 then
                         self.numEngies = self.numEngies - 1
                         self.mainEngie = self.subsidiaryEngies[self.numEngies]
-                         -- Commented out below as unecessary, this will tidy up on it's own.
+                        self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
+                        self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[self.numEngies]
+                        -- Commented out below as unecessary, this will tidy up on it's own.
                         --self.subsidiaryEngies[self.numEngies] = nil
                     else
                         self.numEngies = 0
@@ -186,12 +198,12 @@ MobileJobExecutor = Class(JobExecutor) {
             return nil
         end
     end,
-}
+})
 
-FactoryJobExecutor = Class(JobExecutor) {
+FactoryJobExecutor = Class({
 
-}
+})
 
-UpgradeJobExecutor = Class(JobExecutor) {
+UpgradeJobExecutor = Class({
 
-}
+})
