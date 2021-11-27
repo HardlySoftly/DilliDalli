@@ -7,13 +7,17 @@ CommandInterface = Class({
     IssueBuildMobile = function(self, units, position, bpID)
         IssueBuildMobile(units,position,bpID,{})
     end,
-    
+
     IssueRepair = function(self, units, target)
         IssueRepair(units,target)
     end,
-    
+
     IssueGuard = function(self, units, target)
         IssueGuard(units,target)
+    end,
+
+    IssueStop = function(self, units)
+        IssueStop(units)
     end,
 })
 
