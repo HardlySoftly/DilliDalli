@@ -39,7 +39,9 @@ MobileJobExecutor = Class({
 
         -- Update job state here
         self.job.data.totalBuildpower = self.job.data.totalBuildpower + self.builderRate
+        -- Actual spend is measured assuming 100% efficiency - i.e. we're not in a stall.
         self.actualSpend = 0
+        -- Theoretical spend includes engies which aren't building right now, but should be at some point.
         self.theoreticalSpend = 0
     end,
 
