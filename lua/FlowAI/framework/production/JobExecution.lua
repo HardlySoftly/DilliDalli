@@ -4,8 +4,8 @@
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
-MobileJobExecutor = Class({
-    Init = function(self,builder,job,buildLocation,brain)
+JobExecutor = Class({
+    Init = function(self,builder,job,brain)
         -- The job we're doing.  This class is responsible for some state maintenance here.
         self.job = job
         -- Somwhere to dump old threads
@@ -13,23 +13,15 @@ MobileJobExecutor = Class({
         -- Some flags we'll need
         self.complete = false
         self.success = false
-        self.reissue = true
         self.started = false
         -- Completion explanation (for debugging)
         self.reason = nil
         -- The thing we're building - while this is nil we assume the job is unstarted
         self.target = nil
         self.toBuildID = job.specification.unitBlueprintID
-        -- The engie that can start the jobs
-        self.builder = builder
+        -- The builder to assist (if not the target)
+        self.mainBuilder = builder
         self.builderRate = builder:GetBuildRate()
-        -- The engie to assist (if not the target)
-        self.mainEngie = builder
-        -- The place to buildLocation
-        self.buildLocation = buildLocation
-        -- Build location deconfliction
-        self.deconfliction = brain.deconfliction
-        self.buildID = nil
         -- Command Interface
         self.commandInterface = brain.commandInterface
         -- All engies excepting the main engie
@@ -80,7 +72,7 @@ MobileJobExecutor = Class({
         end
     end,
 
-    ClearDeadEngies = function(self)
+    ClearDeadAssisters = function(self)
         -- Iterate through self.subsidiaryEngies deleting dead things.
         if self.numEngies > 1 then
             local i = 1
@@ -100,50 +92,11 @@ MobileJobExecutor = Class({
                 end
             end
         end
-        -- If main engie is dead, replace it if possible.
-        if (self.numEngies > 0) and ((not self.mainEngie) or self.mainEngie.Dead) then
-            if self.target then
-                if self.numEngies > 1 then
-                    self.numEngies = self.numEngies - 1
-                    self.mainEngie = self.subsidiaryEngies[self.numEngies]
-                    self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
-                    self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[self.numEngies]
-                    -- Commented out below as unecessary, this will tidy up on it's own.
-                    --self.subsidiaryEngies[self.numEngies] = nil
-                else
-                    self.numEngies = 0
-                end
-            else
-                -- Main engie died without starting the job.  Any replacement main engie may not be able to build the intended job, so we have to fail.
-                self.complete = true
-                self.success = false
-                self.reason = "Main engie died without starting job."
-            end
-        end
     end,
 
     ResetSpendStats = function(self)
         self.actualSpend = 0
         self.theoreticalSpend = 0
-    end,
-
-    CheckMainEngie = function(self)
-        -- Check if main engie is idle.  Try a single order re-issue if it is, otherwise fail.
-        if (not self.target) and self.mainEngie:IsIdleState() then
-            if self.reissue then
-                self.commandInterface:IssueBuildMobile({self.mainEngie},self.buildLocation,self.toBuildID)
-                self.reissue = false
-            else
-                self.complete = true
-                self.success = false
-                self.reason = "Order reissue limit exceeded."
-            end
-        end
-        self.theoreticalSpend = self.theoreticalSpend + self.builderRate * self.job.data.massSpendRate
-        if self.mainEngie:IsUnitState('Building') or self.mainEngie:IsUnitState('Repairing') then
-            self.actualSpend = self.actualSpend + self.builderRate * self.job.data.massSpendRate
-        end
-        
     end,
 
     CheckAssistingEngies = function(self)
@@ -162,17 +115,15 @@ MobileJobExecutor = Class({
             self.theoreticalSpend = self.theoreticalSpend + self.buildRates[i] * self.job.data.massSpendRate
             i = i + 1
         end
-        if idleFound and self.target then
-            self.commandInterface:IssueRepair(self.idleEngies,self.target)
-        elseif idleFound then
-            self.commandInterface:IssueGuard(self.idleEngies,self.mainEngie)
+        if idleFound then
+            self.commandInterface:IssueGuard(self.idleEngies,self.mainBuilder)
         end
     end,
 
     CheckTarget = function(self)
         -- Try to update self.target.
-        if (not self.target) and self.mainEngie.UnitBeingBuilt then
-            self.target = self.mainEngie.UnitBeingBuilt
+        if (not self.target) and self.mainBuilder.UnitBeingBuilt then
+            self.target = self.mainBuilder.UnitBeingBuilt
             self.started = true
         end
         -- If target destroyed then complete with failure
@@ -187,43 +138,6 @@ MobileJobExecutor = Class({
             self.success = true
             self.reason = "Target complete."
         end
-    end,
-
-    JobThread = function(self)
-        local start = PROFILER:Now()
-        -- Initialise job
-        self.buildID = self.deconfliction:Register(self.buildLocation,GetUnitBlueprintByName(self.toBuildID))
-        self.commandInterface:IssueBuildMobile({self.mainEngie},self.buildLocation,self.toBuildID)
-        PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
-        WaitTicks(1)
-        while (not self.complete) and (self.numEngies > 0 or self.target) do
-            WaitTicks(1)
-            start = PROFILER:Now()
-            -- Clear out dead engies
-            self:ClearDeadEngies()
-            -- Check relevant target info
-            self:CheckTarget()
-            --[[
-                Invariants here:
-                self.complete == false =>
-                    - All subsidiary engies are alive
-                    - Only one of the following is true:
-                        - Main engie is alive
-                        - Target exists AND num engies is 0
-            ]]
-            -- Reset spend stats to 0 before we work them all out again.
-            self:ResetSpendStats()
-            if (not self.complete) and (self.numEngies > 0) then
-                -- Not finished, and we have a main engie
-                self:CheckMainEngie()
-                self:CheckAssistingEngies()
-            end
-            PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
-            WaitTicks(1)
-        end
-        start = PROFILER:Now()
-        self.deconfliction:Clear(self.buildID)
-        PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
     end,
 
     Run = function(self)
@@ -241,10 +155,120 @@ MobileJobExecutor = Class({
     end,
 })
 
-FactoryJobExecutor = Class({
+MobileJobExecutor = Class(JobExecutor){
+    Init = function(self,builder,job,buildLocation,brain)
+        JobExecutor.Init(self,builder,job,brain)
+        -- Some more flags we'll need
+        self.reissue = true
+        -- The place to buildLocation
+        self.buildLocation = buildLocation
+        -- Build location deconfliction
+        self.deconfliction = brain.deconfliction
+        self.buildID = nil
+    end,
 
-})
+    ClearDeadBuilders = function(self)
+        self:ClearDeadAssisters()
+        -- If main engie is dead, replace it if possible.
+        if (self.numEngies > 0) and ((not self.mainBuilder) or self.mainBuilder.Dead) then
+            if self.target then
+                if self.numEngies > 1 then
+                    self.numEngies = self.numEngies - 1
+                    self.mainBuilder = self.subsidiaryEngies[self.numEngies]
+                    self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
+                    self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[self.numEngies]
+                    -- Commented out below as unecessary, this will tidy up on it's own.
+                    --self.subsidiaryEngies[self.numEngies] = nil
+                else
+                    self.numEngies = 0
+                end
+            else
+                -- Main builder died without starting the job.  Any replacement main builder may not be able to build the intended job, so we have to fail.
+                self.complete = true
+                self.success = false
+                self.reason = "Main builder died without starting job."
+            end
+        end
+    end,
 
-UpgradeJobExecutor = Class({
+    CheckMainBuilder = function(self)
+        -- Check if main engie is idle.  Try a single order re-issue if it is, otherwise fail.
+        if (not self.target) and self.mainBuilder:IsIdleState() then
+            if self.reissue then
+                self.commandInterface:IssueBuildMobile({self.mainBuilder},self.buildLocation,self.toBuildID)
+                self.reissue = false
+            else
+                self.complete = true
+                self.success = false
+                self.reason = "Order reissue limit exceeded."
+            end
+        end
+        self.theoreticalSpend = self.theoreticalSpend + self.builderRate * self.job.data.massSpendRate
+        if self.mainBuilder:IsUnitState('Building') or self.mainBuilder:IsUnitState('Repairing') then
+            self.actualSpend = self.actualSpend + self.builderRate * self.job.data.massSpendRate
+        end
+    end,
 
-})
+    JobThread = function(self)
+        local start = PROFILER:Now()
+        -- Initialise job
+        self.buildID = self.deconfliction:Register(self.buildLocation,GetUnitBlueprintByName(self.toBuildID))
+        self.commandInterface:IssueBuildMobile({self.mainBuilder},self.buildLocation,self.toBuildID)
+        PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
+        WaitTicks(1)
+        while (not self.complete) and (self.numEngies > 0 or self.target) do
+            WaitTicks(1)
+            start = PROFILER:Now()
+            -- Clear out dead engies
+            self:ClearDeadBuilders()
+            -- Check relevant target info
+            self:CheckTarget()
+            --[[
+                Invariants here:
+                self.complete == false =>
+                    - All subsidiary engies are alive
+                    - Only one of the following is true:
+                        - Main engie is alive
+                        - Target exists AND num engies is 0
+            ]]
+            -- Reset spend stats to 0 before we work them all out again.
+            self:ResetSpendStats()
+            if (not self.complete) and (self.numEngies > 0) then
+                -- Not finished, and we have a main engie
+                self:CheckMainBuilder()
+                self:CheckAssistingEngies()
+            end
+            PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
+            WaitTicks(1)
+        end
+        start = PROFILER:Now()
+        self.deconfliction:Clear(self.buildID)
+        PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
+    end,
+}
+
+FactoryJobExecutor = Class(JobExecutor){
+    ClearDeadBuilders = function(self)
+        self:ClearDeadAssisters()
+        -- TODO: Check liveness of main builder
+    end,
+    CheckMainBuilder = function(self)
+        -- TODO: Check state of main builder
+    end,
+    JobThread = function(self)
+        -- TODO: Run the job
+    end,
+}
+
+UpgradeJobExecutor = Class(JobExecutor){
+    ClearDeadBuilders = function(self)
+        self:ClearDeadAssisters()
+        -- TODO: Check liveness of main builder
+    end,
+    CheckMainBuilder = function(self)
+        -- TODO: Check state of main builder
+    end,
+    JobThread = function(self)
+        -- TODO: Run the job
+    end,
+}

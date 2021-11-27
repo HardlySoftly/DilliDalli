@@ -134,9 +134,9 @@ JobDistributor = Class({
                     if executor.complete then
                         -- Update job data state
                         executor:CompleteJob(job)
-                        -- Reassign engies
-                        if (not isStructureJob) and executor.mainEngie and (not executor.mainEngie.Dead) then
-                            self:FindMobileJob(executor.mainEngie)
+                        -- Reassign builders
+                        if (not isStructureJob) and executor.mainBuilder and (not executor.mainBuilder.Dead) then
+                            self:FindMobileJob(executor.mainBuilder)
                         elseif isStructureJob then
                             -- TODO: support fac and upgrade jobs
                         end
