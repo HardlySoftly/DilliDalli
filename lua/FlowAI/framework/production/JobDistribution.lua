@@ -1,5 +1,16 @@
 --[[
     Distribution of jobs to engies based on priorities and location of units
+    TODOs:
+        Add support for assistance
+        Respect component location requirements
+        Add support for marker based mobile jobs (mexes / hydros)
+        Handle failures to find locations better
+        Flag engies / jobs that are failing repeatedly and try to fix them
+        Exchange jobs where sensible
+        Prioritise jobs/assistance based on proximity
+        Dynamically lower assigned resources to jobs
+        Focus assistance for mobile jobs, spread it for factory jobs
+        Add diagnosis tooling
 ]]
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()

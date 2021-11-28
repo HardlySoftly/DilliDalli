@@ -1,5 +1,9 @@
 --[[
     Picks locations for building on
+    TODOs:
+        Fix build deconfliction
+        Support marker finding stuff
+        Support orientation in finding locations
 ]]
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()

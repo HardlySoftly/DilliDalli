@@ -1,5 +1,11 @@
 --[[
     Execution of individual jobs
+    TODOs:
+        Add support for enhancement jobs
+        Add diagnosis tooling
+        Provide ability to calculate ETAs
+        Support shifting of specific engies away from jobs
+        Pick new location for mobile jobs to reduce travel time
 ]]
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
