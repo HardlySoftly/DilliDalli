@@ -5,6 +5,8 @@
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
 local MobileJobExecutor = import('/mods/DilliDalli/lua/FlowAI/framework/production/JobExecution.lua').MobileJobExecutor
+local FactoryJobExecutor = import('/mods/DilliDalli/lua/FlowAI/framework/production/JobExecution.lua').FactoryJobExecutor
+local UpgradeJobExecutor = import('/mods/DilliDalli/lua/FlowAI/framework/production/JobExecution.lua').UpgradeJobExecutor
 
 -- Use this so that priority 0 jobs can still be started (e.g. hitting count/spend limit)
 local SMALL_NEGATIVE = -0.0000001
@@ -38,7 +40,7 @@ Job = Class({
             -- Whether to delete this job or not
             keep = true,
             -- Swap to count based priority.  Useful for things like mass extractor jobs
-            prioritySwitch = 0,
+            prioritySwitch = false,
         }
         -- Now that we've initialised with some default values, replace with provided values if they exist
         if specification then
@@ -119,6 +121,15 @@ JobDistributor = Class({
                 self:FindMobileJob(v)
             end
         end
+        local units = self.brain.aiBrain:GetListOfUnits(categories.FACTORY,false,true)
+        for _, v in units do
+            if not v.FlowAI then
+                v.FlowAI = {}
+            end
+            if not v.FlowAI.ProductionAssigned then
+                self:FindStructureJob(v)
+            end
+        end
     end,
 
     ExecutorMonitoring = function(self)
@@ -137,8 +148,8 @@ JobDistributor = Class({
                         -- Reassign builders
                         if (not isStructureJob) and executor.mainBuilder and (not executor.mainBuilder.Dead) then
                             self:FindMobileJob(executor.mainBuilder)
-                        elseif isStructureJob then
-                            -- TODO: support fac and upgrade jobs
+                        elseif isStructureJob and executor.mainBuilder and (not executor.mainBuilder.Dead) then
+                            self:FindStructureJob(executor.mainBuilder)
                         end
                         for _, engie in executor.subsidiaryEngies do
                             if engie and (not engie.Dead) then
@@ -259,7 +270,7 @@ JobDistributor = Class({
     end,
 
     FindStructureJob = function(self,structure)
-        -- TODO: Check deadness
+        -- Precondition: structure is not dead!
         local start = PROFILER:Now()
         structure.FlowAI.ProductionAssigned = false
         local bestJob = nil
@@ -299,10 +310,6 @@ JobDistributor = Class({
         if job.specification.builderBlueprintID and (not job.specification.builderBlueprintID == bp.BlueprintId) then
             return -1
         end
-        -- Check if the builder can build this thing
-        if not builder:CanBuild(job.specification.unitBlueprintID) then
-            return -1
-        end
         -- Check if we are going to exceed the number of allowed jobs of this type
         if job.data.numExecutors >= job.specification.duplicates then
             return -1
@@ -311,12 +318,16 @@ JobDistributor = Class({
         if job.data.numExecutors >= job.specification.count then
             return -1
         end
+        -- Check if the builder can build this thing
+        if not builder:CanBuild(job.specification.unitBlueprintID) then
+            return -1
+        end
         -- TODO: Check component requirements here
         -- Calculate and return priority of this job.  Spend requirement checking is implicit (TODO).
         if job.specification.prioritySwitch then
-            return 1 - (job.data.numExecutors+1)/math.min(job.specification.count,job.specification.duplicates)
+            return 1 - (job.data.numExecutors+1)/math.min(job.specification.count,job.specification.duplicates) - SMALL_NEGATIVE
         else
-            return 1 - ((job.data.totalBuildpower+bp.Economy.BuildRate)*job.data.massSpendRate)/job.specification.targetSpend
+            return 1 - ((job.data.totalBuildpower+bp.Economy.BuildRate)*job.data.massSpendRate)/job.specification.targetSpend - SMALL_NEGATIVE
         end
     end,
 
@@ -365,12 +376,22 @@ JobDistributor = Class({
 
     StartFactoryExecutor = function(self,job,factory)
         -- Given an factory and a job to start, create an executor (and maintain associated state).
-        -- TODO
+        local executor = FactoryJobExecutor()
+        executor:Init(factory,job,self.brain)
+        job.data.numExecutors = job.data.numExecutors + 1
+        job.data.executors[job.data.numExecutors] = executor
+        executor:Run()
+        factory.FlowAI.ProductionAssigned = true
     end,
 
     StartUpgradeExecutor = function(self,job,structure)
         -- Given a structure and a job to start, create an executor (and maintain associated state).
-        -- TODO
+        local executor = UpgradeJobExecutor()
+        executor:Init(structure,job,self.brain)
+        job.data.numExecutors = job.data.numExecutors + 1
+        job.data.executors[job.data.numExecutors] = executor
+        executor:Run()
+        structure.FlowAI.ProductionAssigned = true
     end,
 
     AssistExecutor = function(self,job,executor,engie)

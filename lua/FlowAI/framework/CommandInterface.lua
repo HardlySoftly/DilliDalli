@@ -8,6 +8,14 @@ CommandInterface = Class({
         IssueBuildMobile(units,position,bpID,{})
     end,
 
+    IssueBuildFactory = function(self, units, bpID, count)
+        IssueBuildFactory(units,bpID,count)
+    end,
+
+    IssueUpgrade = function(self, units, bpID)
+        IssueUpgrade(units,bpID)
+    end,
+
     IssueRepair = function(self, units, target)
         IssueRepair(units,target)
     end,

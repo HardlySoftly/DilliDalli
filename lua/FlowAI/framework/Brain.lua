@@ -26,8 +26,17 @@ Brain = Class({
         WaitSeconds(5)
         -- Some setup...
         local pgenJob = Job()
-        pgenJob:Init({targetSpend = 100000, count = 100000, duplicates = 100000, unitBlueprintID = 'uab1101'})
+        pgenJob:Init({targetSpend = 100000, count = 100000, duplicates = 100000, unitBlueprintID = 'uab1101', prioritySwitch = true})
+        local factoryJob = Job()
+        factoryJob:Init({targetSpend = 100000, count = 100000, duplicates = 100000, unitBlueprintID = 'uab0101', prioritySwitch = true})
+        local tankJob = Job()
+        tankJob:Init({targetSpend = 1000, count = 100000, duplicates = 100000, unitBlueprintID = 'ual0201'})
+        local upgradeJob = Job()
+        upgradeJob:Init({targetSpend = 100000, count = 1, duplicates = 1, unitBlueprintID = 'uab0201'})
         self.jobDistributor:AddMobileJob(pgenJob)
+        self.jobDistributor:AddMobileJob(factoryJob)
+        self.jobDistributor:AddFactoryJob(tankJob)
+        self.jobDistributor:AddUpgradeJob(upgradeJob)
         self.jobDistributor:Run()
         LOG("DilliDalli Brain ready...")
     end,

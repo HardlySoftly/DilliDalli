@@ -222,7 +222,9 @@ MobileJobExecutor = Class(JobExecutor){
             -- Clear out dead engies
             self:ClearDeadBuilders()
             -- Check relevant target info
-            self:CheckTarget()
+            if not self.complete then
+                self:CheckTarget()
+            end
             --[[
                 Invariants here:
                 self.complete == false =>
@@ -250,25 +252,159 @@ MobileJobExecutor = Class(JobExecutor){
 FactoryJobExecutor = Class(JobExecutor){
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
-        -- TODO: Check liveness of main builder
+        if (self.numEngies > 0) and ((not self.mainBuilder) or self.mainBuilder.Dead) then
+            -- Factory died without during the job.
+            self.complete = true
+            self.success = false
+            self.reason = "Factory died during job."
+        end
     end,
+
+    CheckTarget = function(self)
+        -- Try to update self.target.
+        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.FlowAI.previousBuilt) then
+            self.target = self.mainBuilder.UnitBeingBuilt
+            -- Cache this, because it doesn't update until a new unit starts (which is effing annoying)
+            self.mainBuilder.FlowAI.previousBuilt = self.mainBuilder.UnitBeingBuilt
+            self.started = true
+        end
+        -- If target destroyed then complete with failure
+        if self.started and ((not self.target) or self.target.Dead) then
+            self.complete = true
+            self.success = false
+            self.reason = "Target was destroyed."
+        end
+        if self.target and (not self.target.Dead) and (not self.target:IsBeingBuilt()) then
+            -- Check if we've finished
+            self.complete = true
+            self.success = true
+            self.reason = "Target complete."
+        end
+    end,
+
     CheckMainBuilder = function(self)
-        -- TODO: Check state of main builder
+        -- Check if main builder is idle.  Try a single order re-issue if it is, otherwise fail.
+        if self.mainBuilder:IsIdleState() and (not self.mainBuilder:GetCommandQueue()[1]) then
+            self.complete = true
+            self.success = false
+            self.reason = "Unknown problem - factory found idle."
+        end
+        self.theoreticalSpend = self.theoreticalSpend + self.builderRate * self.job.data.massSpendRate
+        if not self.mainBuilder:IsIdleState() then
+            self.actualSpend = self.actualSpend + self.builderRate * self.job.data.massSpendRate
+        end
     end,
+
     JobThread = function(self)
-        -- TODO: Run the job
+        local start = PROFILER:Now()
+        -- Initialise job
+        self.commandInterface:IssueBuildFactory({self.mainBuilder},self.toBuildID,1)
+        PROFILER:Add("FactoryJobExecutor:JobThread",PROFILER:Now()-start)
+        WaitTicks(1)
+        while not self.complete do
+            WaitTicks(1)
+            start = PROFILER:Now()
+            -- Clear out dead engies
+            self:ClearDeadBuilders()
+            -- Check relevant target info
+            if not self.complete then
+                self:CheckTarget()
+            end
+            --[[
+                Invariants here:
+                self.complete == false =>
+                    - All subsidiary engies are alive
+                    - Main builder is alive
+            ]]
+            -- Reset spend stats to 0 before we work them all out again.
+            self:ResetSpendStats()
+            if (not self.complete) and (self.numEngies > 0) then
+                -- Not finished, and we have a main engie
+                self:CheckMainBuilder()
+                self:CheckAssistingEngies()
+            end
+            PROFILER:Add("FactoryJobExecutor:JobThread",PROFILER:Now()-start)
+            WaitTicks(1)
+        end
     end,
 }
 
 UpgradeJobExecutor = Class(JobExecutor){
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
-        -- TODO: Check liveness of main builder
+        if (self.numEngies > 0) and ((not self.mainBuilder) or self.mainBuilder.Dead) then
+            -- Structure died without during the job.
+            self.complete = true
+            self.success = false
+            self.reason = "Structure died during upgrade."
+        end
     end,
+
+    CheckTarget = function(self)
+        -- Try to update self.target.
+        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.FlowAI.previousBuilt) then
+            self.target = self.mainBuilder.UnitBeingBuilt
+            -- Cache this, because it doesn't update until a new unit starts (which is effing annoying)
+            self.mainBuilder.FlowAI.previousBuilt = self.mainBuilder.UnitBeingBuilt
+            self.started = true
+        end
+        -- If target destroyed then complete with failure
+        if self.started and ((not self.target) or self.target.Dead) then
+            self.complete = true
+            self.success = false
+            self.reason = "Target was destroyed."
+        end
+        if self.target and (not self.target.Dead) and (not self.target:IsBeingBuilt()) then
+            -- Check if we've finished
+            self.complete = true
+            self.success = true
+            self.reason = "Target complete."
+        end
+    end,
+
     CheckMainBuilder = function(self)
-        -- TODO: Check state of main builder
+        -- Check if main builder is idle.  Try a single order re-issue if it is, otherwise fail.
+        if self.mainBuilder:IsIdleState() and (not self.mainBuilder:GetCommandQueue()[1]) then
+            self.complete = true
+            self.success = false
+            self.reason = "Unknown problem - structure found idle."
+        end
+        self.theoreticalSpend = self.theoreticalSpend + self.builderRate * self.job.data.massSpendRate
+        if not self.mainBuilder:IsIdleState() then
+            self.actualSpend = self.actualSpend + self.builderRate * self.job.data.massSpendRate
+        end
     end,
+
     JobThread = function(self)
-        -- TODO: Run the job
+        local start = PROFILER:Now()
+        -- Initialise job
+        self.commandInterface:IssueUpgrade({self.mainBuilder},self.toBuildID)
+        PROFILER:Add("UpgradeJobExecutor:JobThread",PROFILER:Now()-start)
+        WaitTicks(1)
+        while not self.complete do
+            WaitTicks(1)
+            start = PROFILER:Now()
+            -- Clear out dead engies
+            self:ClearDeadBuilders()
+            -- Check relevant target info
+            if not self.complete then
+                self:CheckTarget()
+            end
+            --[[
+                Invariants here:
+                self.complete == false =>
+                    - All subsidiary engies are alive
+                    - Main builder is alive
+            ]]
+            -- Reset spend stats to 0 before we work them all out again.
+            self:ResetSpendStats()
+            if (not self.complete) and (self.numEngies > 0) then
+                -- Not finished, and we have a main engie
+                self:CheckMainBuilder()
+                self:CheckAssistingEngies()
+            end
+            PROFILER:Add("UpgradeJobExecutor:JobThread",PROFILER:Now()-start)
+            WaitTicks(1)
+        end
     end,
 }
