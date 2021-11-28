@@ -530,6 +530,9 @@ MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS = {}
 function CreateMarker(t,x,y,z,size)
     table.insert(MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS,{type=t,position={x,y,z}})
 end
+function GetMarkers()
+    return MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS
+end
 
 local PLAYABLE_AREA = {}
 function SetPlayableArea(x0,z0,x1,z1)

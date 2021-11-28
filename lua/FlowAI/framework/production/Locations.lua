@@ -4,9 +4,12 @@
         Fix build deconfliction
         Support marker finding stuff
         Support orientation in finding locations
+        Thread for monitoring marker availability
+        Produce marker availability stats
 ]]
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
+
 
 local _OFFSETS = {
     -- Orientation to search in = {X, Z, {{next X, next Z, next Last}, ...}}
@@ -160,4 +163,44 @@ BuildDeconfliction = Class({
         PROFILER:Add("FindBuildCoordinates",PROFILER:Now()-start)
         return nil
     end,
+})
+
+MarkerManager = Class({
+    Init = function(self)
+        self.markers = table.deepcopy(import("/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua").GetMarkers())
+        self.numMarkers = 0
+        for _, v in self.markers do
+            self.numMarkers = self.numMarkers + 1
+            v.id = self.numMarkers
+            v.claimed = false
+        end
+    end,
+    GetClosestMarker = function(self,loc,markerType)
+        local closest = -1
+        local best = nil
+        local i = 1
+        while i <= self.numMarkers do
+            -- TODO: reduce number of 'CanBuildOnMarker' checks here
+            if (self.markers[i].type == markerType) and self:CanBuildOnMarker(self.markers[i].position) then
+                local xd = loc[1]-self.markers[i].position[1]
+                local zd = loc[3]-self.markers[i].position[3]
+                local dist = (xd*xd) + (zd*zd)
+                if (closest < 0) or (dist < closest) then
+                    closest = dist
+                    best = i
+                end
+            end
+        end
+    end,
+    CanBuildOnMarker = function(self,pos)
+        local alliedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Ally')
+        return (not alliedUnits) or (not alliedUnits[1])
+    end,
+    RegisterMarker = function(self,markerID)
+        self.markers[markerID].claimed = true
+        return self.markers[markerID].position
+    end
+    DeregisterMarker = function(self,markerID)
+        self.markers[markerID].claimed = false
+    end
 })
