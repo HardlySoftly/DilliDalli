@@ -354,7 +354,7 @@ JobDistributor = Class({
             local pos = engie:GetPosition()
             return self.brain.deconfliction:FindBuildCoordinates({math.round(pos[1]) + Random(-3,3) + 0.5,0,math.round(pos[3]) + Random(-3,3) + 0.5},job.specification.unitBlueprintID,self.brain.aiBrain)
         else
-            local pos = engieGetPosition()
+            local pos = engie:GetPosition()
             local delta = {initLocation.x - pos[1], initLocation.z - pos[3]}
             local dist = math.sqrt(delta[1]*delta[1] + delta[2]*delta[2])
             local norm = math.min(initLocation.radius/dist,1)
@@ -363,9 +363,7 @@ JobDistributor = Class({
     end,
 
     FindMarkerBuildLocation = function(self,job,engie)
-        -- TODO
-        WARN("MARKERS NOT SUPPORTED SORRY BRUH")
-        return nil
+        return self.brain.markerManager:GetClosestMarker(engie:GetPosition(),job.specification.markerType)
     end,
 
     StartMobileExecutor = function(self,job,engie)

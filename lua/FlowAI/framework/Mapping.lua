@@ -525,7 +525,7 @@ function GetMap()
     return map
 end
 
-MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS = {}
+local MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS = {}
 
 function CreateMarker(t,x,y,z,size)
     table.insert(MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS,{type=t,position={x,y,z}})

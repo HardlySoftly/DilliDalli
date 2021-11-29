@@ -6,6 +6,7 @@
         Provide ability to calculate ETAs
         Support shifting of specific engies away from jobs
         Pick new location for mobile jobs to reduce travel time
+        Reclaim enemy things in the way of a building
 ]]
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
@@ -126,26 +127,6 @@ JobExecutor = Class({
         end
     end,
 
-    CheckTarget = function(self)
-        -- Try to update self.target.
-        if (not self.target) and self.mainBuilder.UnitBeingBuilt then
-            self.target = self.mainBuilder.UnitBeingBuilt
-            self.started = true
-        end
-        -- If target destroyed then complete with failure
-        if self.started and ((not self.target) or self.target.Dead) then
-            self.complete = true
-            self.success = false
-            self.reason = "Target was destroyed."
-        end
-        if self.target and (not self.target.Dead) and (not self.target:IsBeingBuilt()) then
-            -- Check if we've finished
-            self.complete = true
-            self.success = true
-            self.reason = "Target complete."
-        end
-    end,
-
     Run = function(self)
         self:ForkThread(self.JobThread)
     end,
@@ -166,11 +147,21 @@ MobileJobExecutor = Class(JobExecutor){
         JobExecutor.Init(self,builder,job,brain)
         -- Some more flags we'll need
         self.reissue = true
+        self.markerJob = self.job.specification.markerType ~= nil
         -- The place to buildLocation
-        self.buildLocation = buildLocation
-        -- Build location deconfliction
+        if self.markerJob then
+            self.buildLocation = nil
+        else
+            self.buildLocation = buildLocation
+        end
+        -- Build location deconfliction / marker management
         self.deconfliction = brain.deconfliction
-        self.buildID = nil
+        self.markerManager = brain.markerManager
+        if self.markerJob then
+            self.buildID = buildLocation
+        else
+            self.buildID = nil
+        end
     end,
 
     ClearDeadBuilders = function(self)
@@ -197,6 +188,26 @@ MobileJobExecutor = Class(JobExecutor){
         end
     end,
 
+    CheckTarget = function(self)
+        -- Try to update self.target.
+        if (not self.target) and self.mainBuilder.UnitBeingBuilt then
+            self.target = self.mainBuilder.UnitBeingBuilt
+            self.started = true
+        end
+        -- If target destroyed then complete with failure
+        if self.started and ((not self.target) or self.target.Dead) then
+            self.complete = true
+            self.success = false
+            self.reason = "Target was destroyed."
+        end
+        if self.target and (not self.target.Dead) and (not self.target:IsBeingBuilt()) then
+            -- Check if we've finished
+            self.complete = true
+            self.success = true
+            self.reason = "Target complete."
+        end
+    end,
+
     CheckMainBuilder = function(self)
         -- Check if main engie is idle.  Try a single order re-issue if it is, otherwise fail.
         if (not self.target) and self.mainBuilder:IsIdleState() then
@@ -218,7 +229,11 @@ MobileJobExecutor = Class(JobExecutor){
     JobThread = function(self)
         local start = PROFILER:Now()
         -- Initialise job
-        self.buildID = self.deconfliction:Register(self.buildLocation,GetUnitBlueprintByName(self.toBuildID))
+        if self.markerJob then
+            self.buildLocation = self.markerManager:RegisterMarker(self.buildID)
+        else
+            self.buildID = self.deconfliction:Register(self.buildLocation,GetUnitBlueprintByName(self.toBuildID))
+        end
         self.commandInterface:IssueBuildMobile({self.mainBuilder},self.buildLocation,self.toBuildID)
         PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
         WaitTicks(1)
@@ -250,7 +265,11 @@ MobileJobExecutor = Class(JobExecutor){
             WaitTicks(1)
         end
         start = PROFILER:Now()
-        self.deconfliction:Clear(self.buildID)
+        if self.markerJob then
+            self.markerManager:ClearMarker(self.buildID)
+        else
+            self.deconfliction:Clear(self.buildID)
+        end
         PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
     end,
 }

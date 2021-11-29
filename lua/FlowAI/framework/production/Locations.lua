@@ -5,11 +5,14 @@
         Support marker finding stuff
         Support orientation in finding locations
         Thread for monitoring marker availability
-        Produce marker availability stats
+        Produce marker availability stats (by component)
+        Marker pathability checking
 ]]
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
+local GetMarkers = import("/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua").GetMarkers
+local MAP = import("/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua").GetMap()
 
 local _OFFSETS = {
     -- Orientation to search in = {X, Z, {{next X, next Z, next Last}, ...}}
@@ -166,12 +169,12 @@ BuildDeconfliction = Class({
 })
 
 MarkerManager = Class({
-    Init = function(self)
-        self.markers = table.deepcopy(import("/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua").GetMarkers())
+    Init = function(self,brain)
+        self.brain = brain
+        self.markers = table.deepcopy(GetMarkers())
         self.numMarkers = 0
         for _, v in self.markers do
             self.numMarkers = self.numMarkers + 1
-            v.id = self.numMarkers
             v.claimed = false
         end
     end,
@@ -181,7 +184,8 @@ MarkerManager = Class({
         local i = 1
         while i <= self.numMarkers do
             -- TODO: reduce number of 'CanBuildOnMarker' checks here
-            if (self.markers[i].type == markerType) and self:CanBuildOnMarker(self.markers[i].position) then
+            -- TODO: check pathability
+            if (self.markers[i].type == markerType) and (not self.markers[i].claimed) and self:CanBuildOnMarker(self.markers[i].position) then
                 local xd = loc[1]-self.markers[i].position[1]
                 local zd = loc[3]-self.markers[i].position[3]
                 local dist = (xd*xd) + (zd*zd)
@@ -190,7 +194,9 @@ MarkerManager = Class({
                     best = i
                 end
             end
+            i = i + 1
         end
+        return best
     end,
     CanBuildOnMarker = function(self,pos)
         local alliedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Ally')
@@ -199,8 +205,8 @@ MarkerManager = Class({
     RegisterMarker = function(self,markerID)
         self.markers[markerID].claimed = true
         return self.markers[markerID].position
-    end
-    DeregisterMarker = function(self,markerID)
+    end,
+    ClearMarker = function(self,markerID)
         self.markers[markerID].claimed = false
-    end
+    end,
 })
