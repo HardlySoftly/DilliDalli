@@ -143,25 +143,13 @@ JobExecutor = Class({
 })
 
 MobileJobExecutor = Class(JobExecutor){
-    Init = function(self,builder,job,buildLocation,brain)
+    Init = function(self,builder,job,buildLocation,buildID,brain)
         JobExecutor.Init(self,builder,job,brain)
         -- Some more flags we'll need
         self.reissue = true
-        self.markerJob = self.job.specification.markerType ~= nil
-        -- The place to buildLocation
-        if self.markerJob then
-            self.buildLocation = nil
-        else
-            self.buildLocation = buildLocation
-        end
         -- Build location deconfliction / marker management
-        self.deconfliction = brain.deconfliction
-        self.markerManager = brain.markerManager
-        if self.markerJob then
-            self.buildID = buildLocation
-        else
-            self.buildID = nil
-        end
+        self.buildLocation = buildLocation
+        self.buildID = buildID
     end,
 
     ClearDeadBuilders = function(self)
@@ -229,11 +217,6 @@ MobileJobExecutor = Class(JobExecutor){
     JobThread = function(self)
         local start = PROFILER:Now()
         -- Initialise job
-        if self.markerJob then
-            self.buildLocation = self.markerManager:RegisterMarker(self.buildID)
-        else
-            self.buildID = self.deconfliction:Register(self.buildLocation,GetUnitBlueprintByName(self.toBuildID))
-        end
         self.commandInterface:IssueBuildMobile({self.mainBuilder},self.buildLocation,self.toBuildID)
         PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
         WaitTicks(1)
@@ -264,13 +247,6 @@ MobileJobExecutor = Class(JobExecutor){
             PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
             WaitTicks(1)
         end
-        start = PROFILER:Now()
-        if self.markerJob then
-            self.markerManager:ClearMarker(self.buildID)
-        else
-            self.deconfliction:Clear(self.buildID)
-        end
-        PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
     end,
 }
 

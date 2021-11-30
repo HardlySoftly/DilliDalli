@@ -156,6 +156,13 @@ JobDistributor = Class({
                     if executor.complete then
                         -- Update job data state
                         executor:CompleteJob(job)
+                        if not isStructureJob then
+                            if job.specification.markerType then
+                                self.brain.markerManager:ClearMarker(executor.buildID)
+                            else
+                                self.brain.deconfliction:Clear(executor.buildID)
+                            end
+                        end
                         -- Reassign builders
                         if (not isStructureJob) and executor.mainBuilder and (not executor.mainBuilder.Dead) then
                             self:FindMobileJob(executor.mainBuilder)
@@ -363,20 +370,23 @@ JobDistributor = Class({
     end,
 
     FindMarkerBuildLocation = function(self,job,engie)
-        return self.brain.markerManager:GetClosestMarker(engie:GetPosition(),job.specification.markerType)
+        return 
     end,
 
     StartMobileExecutor = function(self,job,engie)
         -- Given an engineer and a job to start, create an executor (and maintain associated state).
         local executor = MobileJobExecutor()
         local buildLocation = nil
+        local buildID = nil
         if job.specification.markerType then
-            buildLocation = self:FindMarkerBuildLocation(job,engie)
+            buildID = self.brain.markerManager:GetClosestMarker(engie:GetPosition(),job.specification.markerType)
+            buildLocation = self.brain.markerManager:RegisterMarker(buildID)
         else
             buildLocation = self:FindBuildLocation(job,engie)
+            buildID = self.brain.deconfliction:Register(buildLocation,GetUnitBlueprintByName(job.specification.unitBlueprintID))
         end
         -- TODO: handle failures to find build locations
-        executor:Init(engie,job,buildLocation,self.brain)
+        executor:Init(engie,job,buildLocation,buildID,self.brain)
         job.data.numExecutors = job.data.numExecutors + 1
         job.data.executors[job.data.numExecutors] = executor
         executor:Run()
