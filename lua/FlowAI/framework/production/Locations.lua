@@ -96,6 +96,9 @@ BuildDeconfliction = Class({
     end,
 
     Register = function(self, loc, bp)
+        if not loc then
+            return nil
+        end
         self.numPending = self.numPending + 1
         self.pendingStructures[self.numPending] = { pos = loc, bp = bp, id = self.nextID }
         self.nextID = self.nextID + 1
@@ -178,14 +181,16 @@ MarkerManager = Class({
             v.claimed = false
         end
     end,
-    GetClosestMarker = function(self,loc,markerType)
+    GetClosestMarker = function(self,loc,markerType,engie)
         local closest = -1
         local best = nil
         local i = 1
         while i <= self.numMarkers do
             -- TODO: reduce number of 'CanBuildOnMarker' checks here
             -- TODO: check pathability
-            if (self.markers[i].type == markerType) and (not self.markers[i].claimed) and self:CanBuildOnMarker(self.markers[i].position) then
+            if (self.markers[i].type == markerType) and (not self.markers[i].claimed)
+                                                    and self:CanBuildOnMarker(self.markers[i].position)
+                                                    and MAP:UnitCanPathTo(engie,self.markers[i].position) then
                 local xd = loc[1]-self.markers[i].position[1]
                 local zd = loc[3]-self.markers[i].position[3]
                 local dist = (xd*xd) + (zd*zd)
@@ -203,6 +208,9 @@ MarkerManager = Class({
         return (not alliedUnits) or (not alliedUnits[1])
     end,
     RegisterMarker = function(self,markerID)
+        if not markerID then
+            return nil
+        end
         self.markers[markerID].claimed = true
         return self.markers[markerID].position
     end,

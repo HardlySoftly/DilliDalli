@@ -379,11 +379,15 @@ JobDistributor = Class({
         local buildLocation = nil
         local buildID = nil
         if job.specification.markerType then
-            buildID = self.brain.markerManager:GetClosestMarker(engie:GetPosition(),job.specification.markerType)
+            buildID = self.brain.markerManager:GetClosestMarker(engie:GetPosition(),job.specification.markerType,engie)
             buildLocation = self.brain.markerManager:RegisterMarker(buildID)
         else
             buildLocation = self:FindBuildLocation(job,engie)
             buildID = self.brain.deconfliction:Register(buildLocation,GetUnitBlueprintByName(job.specification.unitBlueprintID))
+        end
+        if not buildLocation then
+            WARN("Build location not found for: "..tostring(job.specification.unitBlueprintID))
+            return
         end
         -- TODO: handle failures to find build locations
         executor:Init(engie,job,buildLocation,buildID,self.brain)

@@ -468,6 +468,39 @@ GameMap = Class({
         local j1 = math.min(math.max(math.floor((pos1[3] - PLAYABLE_AREA[2] + self.gap)/self.gap),1),self.zSize)
         return (self.components[i0][j0][layer] > 0) and (self.components[i0][j0][layer] == self.components[i1][j1][layer])
     end,
+    UnitCanPathTo = function(self,unit,pos)
+        local layer = self:GetMovementLayer(unit)
+        if layer == -1 then
+            return false
+        elseif layer == 0 then
+            return true
+        else
+            local unitPos = unit:GetPosition()
+            return self:CanPathTo(unitPos,pos,layer)
+        end
+    end,
+    GetMovementLayer = function(self,unit)
+        -- -1 => cannot move, 0 => air unit, otherwise chooses best matching layer index
+        local motionType = unit:GetBlueprint().Physics.MotionType
+        if (not motionType) or motionType == "RULEUMT_None" then
+            return -1
+        elseif motionType == "RULEUMT_Air" then
+            return 0
+        elseif motionType == "RULEUMT_Land" then
+            return 1
+        elseif motionType == "RULEUMT_Water" then
+            return 2
+        elseif (motionType == "RULEUMT_Hover") or (motionType == "RULEUMT_AmphibiousFloating") then
+            return 3
+        elseif "RULEUMT_Amphibious" then
+            return 4
+        elseif motionType == "RULEUMT_SurfacingSub" then
+            return 5
+        else
+            WARN("Unknown layer type found in map:GetMovementLayer - "..tostring(motionType))
+            return -1
+        end
+    end,
 
     DrawLand = function(self)
         local colours = { 'aa1f77b4', 'aaff7f0e', 'aa2ca02c', 'aad62728', 'aa9467bd', 'aa8c564b', 'aae377c2', 'aa7f7f7f', 'aabcbd22', 'aa17becf' }
