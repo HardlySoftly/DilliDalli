@@ -48,11 +48,24 @@ JobExecutor = Class({
         self.subsidiaryEngies[self.numEngies] = assister
         local buildRate = assister:GetBuildRate()
         self.buildRates[self.numEngies] = buildRate
+        assister.FlowAI.assistingExecutor = self
+        assister.FlowAI.executorIndex = self.numEngies
         self.numEngies = self.numEngies + 1
         self.job.data.totalBuildpower = self.job.data.totalBuildpower + buildRate
         self.job.data.assistBuildpower = self.job.data.assistBuildpower + buildRate
         -- If the engie is already doing something, stop.  Then we know to pick it up later and issue a new order.
         self.commandInterface:IssueStop({assister})
+    end,
+
+    RemoveEngineer = function(self,engie)
+        --[[
+            This engineer must be assisting this job, and I won't check that for you.
+            Use something like:
+                if engie.FlowAI.productionAssigned then engie.FlowAI.assistingExecutor:RemoveEngineer(engie) end
+            to avoid issues.
+        ]]
+        engie.FlowAI.assistingExecutor = nil
+        self.subsidiaryEngies[engie.FlowAI.executorIndex] = nil
     end,
 
     GetEstimatedCompletionTime = function(self,includeBottlenecks)
@@ -91,6 +104,7 @@ JobExecutor = Class({
                         self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.buildRates[i]
                         self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[i]
                         self.buildRates[i] = self.buildRates[self.numEngies]
+                        self.subsidiaryEngies[i].executorIndex = i
                         -- Commented out below as unecessary, this will tidy up on it's own.
                         --self.subsidiaryEngies[self.numEngies] = nil
                     end
@@ -160,6 +174,7 @@ MobileJobExecutor = Class(JobExecutor){
                 if self.numEngies > 1 then
                     self.numEngies = self.numEngies - 1
                     self.mainBuilder = self.subsidiaryEngies[self.numEngies]
+                    self.mainBuilder.FlowAI.assistingExecutor = nil
                     self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
                     self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[self.numEngies]
                     -- Commented out below as unecessary, this will tidy up on it's own.
