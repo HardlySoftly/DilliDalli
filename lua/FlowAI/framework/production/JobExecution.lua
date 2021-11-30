@@ -61,7 +61,7 @@ JobExecutor = Class({
         --[[
             This engineer must be assisting this job, and I won't check that for you.
             Use something like:
-                if engie.FlowAI.productionAssigned then engie.FlowAI.assistingExecutor:RemoveEngineer(engie) end
+                if engie.FlowAI.productionAssigned and engie.FlowAI.assistingExecutor then engie.FlowAI.assistingExecutor:RemoveEngineer(engie) end
             to avoid issues.
         ]]
         engie.FlowAI.assistingExecutor = nil
