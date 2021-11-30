@@ -24,6 +24,10 @@ CommandInterface = Class({
         IssueGuard(units,target)
     end,
 
+    IssueReclaim = function(self, units, target)
+        IssueReclaim(units,target)
+    end,
+
     IssueStop = function(self, units)
         IssueStop(units)
     end,

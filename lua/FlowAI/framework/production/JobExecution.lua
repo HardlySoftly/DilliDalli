@@ -11,8 +11,11 @@
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
+local CheckForEnemyStructure = import('/mods/DilliDalli/lua/FlowAI/framework/Intel.lua').CheckForEnemyStructure
+
 JobExecutor = Class({
     Init = function(self,builder,job,brain)
+        self.brain = brain
         -- The job we're doing.  This class is responsible for some state maintenance here.
         self.job = job
         -- Somwhere to dump old threads
@@ -214,7 +217,11 @@ MobileJobExecutor = Class(JobExecutor){
     CheckMainBuilder = function(self)
         -- Check if main engie is idle.  Try a single order re-issue if it is, otherwise fail.
         if (not self.target) and self.mainBuilder:IsIdleState() then
-            if self.reissue then
+            -- Check to see if there's an enemy building on that spot to reclaim
+            local unit = CheckForEnemyStructure(self.brain.aiBrain,self.buildLocation,0.2)
+            if unit then
+                self.commandInterface:IssueReclaim({self.mainBuilder},unit)
+            elseif self.reissue then
                 self.commandInterface:IssueBuildMobile({self.mainBuilder},self.buildLocation,self.toBuildID)
                 self.reissue = false
             else
