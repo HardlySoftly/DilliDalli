@@ -92,6 +92,10 @@ JobExecutor = Class({
         while i < self.numEngies do
             self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.buildRates[i]
             self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[i]
+            i = i+1
+        end
+        if self.numEngies > 1 then
+            self.commandInterface:IssueStop(self.subsidiaryEngies)
         end
     end,
 
@@ -108,8 +112,7 @@ JobExecutor = Class({
                         self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[i]
                         self.buildRates[i] = self.buildRates[self.numEngies]
                         self.subsidiaryEngies[i].executorIndex = i
-                        -- Commented out below as unecessary, this will tidy up on it's own.
-                        --self.subsidiaryEngies[self.numEngies] = nil
+                        self.subsidiaryEngies[self.numEngies] = nil
                     end
                 else
                     i = i + 1
@@ -140,7 +143,7 @@ JobExecutor = Class({
             i = i + 1
         end
         if idleFound then
-            self.commandInterface:IssueGuard(self.idleEngies,self.mainBuilder)
+            self.commandInterface:IssueGuard(idleEngies,self.mainBuilder)
         end
     end,
 
@@ -180,8 +183,7 @@ MobileJobExecutor = Class(JobExecutor){
                     self.mainBuilder.FlowAI.assistingExecutor = nil
                     self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
                     self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[self.numEngies]
-                    -- Commented out below as unecessary, this will tidy up on it's own.
-                    --self.subsidiaryEngies[self.numEngies] = nil
+                    self.subsidiaryEngies[self.numEngies] = nil
                 else
                     self.numEngies = 0
                 end
@@ -242,9 +244,8 @@ MobileJobExecutor = Class(JobExecutor){
         self.commandInterface:IssueBuildMobile({self.mainBuilder},self.buildLocation,self.toBuildID)
         PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
         WaitTicks(1)
+        start = PROFILER:Now()
         while (not self.complete) and (self.numEngies > 0 or self.target) do
-            WaitTicks(1)
-            start = PROFILER:Now()
             -- Clear out dead engies
             self:ClearDeadBuilders()
             -- Check relevant target info
@@ -267,8 +268,10 @@ MobileJobExecutor = Class(JobExecutor){
                 self:CheckAssistingEngies()
             end
             PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
-            WaitTicks(1)
+            WaitTicks(2)
+            start = PROFILER:Now()
         end
+        PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
     end,
 }
 
@@ -306,7 +309,7 @@ FactoryJobExecutor = Class(JobExecutor){
     end,
 
     CheckMainBuilder = function(self)
-        -- Check if main builder is idle.  Try a single order re-issue if it is, otherwise fail.
+        -- Check if main builder is idle.
         if self.mainBuilder:IsIdleState() and (not self.mainBuilder:GetCommandQueue()[1]) then
             self.complete = true
             self.success = false
@@ -324,9 +327,8 @@ FactoryJobExecutor = Class(JobExecutor){
         self.commandInterface:IssueBuildFactory({self.mainBuilder},self.toBuildID,1)
         PROFILER:Add("FactoryJobExecutor:JobThread",PROFILER:Now()-start)
         WaitTicks(1)
+        start = PROFILER:Now()
         while not self.complete do
-            WaitTicks(1)
-            start = PROFILER:Now()
             -- Clear out dead engies
             self:ClearDeadBuilders()
             -- Check relevant target info
@@ -347,15 +349,17 @@ FactoryJobExecutor = Class(JobExecutor){
                 self:CheckAssistingEngies()
             end
             PROFILER:Add("FactoryJobExecutor:JobThread",PROFILER:Now()-start)
-            WaitTicks(1)
+            WaitTicks(2)
+            start = PROFILER:Now()
         end
+        PROFILER:Add("FactoryJobExecutor:JobThread",PROFILER:Now()-start)
     end,
 }
 
 UpgradeJobExecutor = Class(JobExecutor){
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
-        if (self.numEngies > 0) and ((not self.mainBuilder) or self.mainBuilder.Dead) then
+        if (self.numEngies > 0) and ((not self.mainBuilder) or self.mainBuilder.Dead) and ((not self.target) or self.target.Dead) then
             -- Structure died without during the job.
             self.complete = true
             self.success = false
@@ -404,9 +408,8 @@ UpgradeJobExecutor = Class(JobExecutor){
         self.commandInterface:IssueUpgrade({self.mainBuilder},self.toBuildID)
         PROFILER:Add("UpgradeJobExecutor:JobThread",PROFILER:Now()-start)
         WaitTicks(1)
+        start = PROFILER:Now()
         while not self.complete do
-            WaitTicks(1)
-            start = PROFILER:Now()
             -- Clear out dead engies
             self:ClearDeadBuilders()
             -- Check relevant target info
@@ -427,7 +430,9 @@ UpgradeJobExecutor = Class(JobExecutor){
                 self:CheckAssistingEngies()
             end
             PROFILER:Add("UpgradeJobExecutor:JobThread",PROFILER:Now()-start)
-            WaitTicks(1)
+            WaitTicks(2)
+            start = PROFILER:Now()
         end
+        PROFILER:Add("UpgradeJobExecutor:JobThread",PROFILER:Now()-start)
     end,
 }

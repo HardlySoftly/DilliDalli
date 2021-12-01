@@ -11,6 +11,10 @@
         Dynamically lower assigned resources to jobs
         Focus assistance for mobile jobs, spread it for factory jobs
         Add diagnosis tooling
+        Eliminate for loops - they may not work.
+        More profiling
+        Respect assistance ratios
+        Improve prioritisation as regards assistance, e.g. dynamic picking of suitable assistance ratios
 ]]
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
@@ -69,6 +73,8 @@ Job = Class({
             numExecutors = 0,
             -- Spend rate, useful for guessing at buildpower requirements.
             massSpendRate = bp.Economy.BuildCostMass/bp.Economy.BuildTime,
+            -- Ratio of energy spend to mass spend, useful for working out overall energy requirements.
+            energyRatio = bp.Economy.BuildCostMass/bp.Economy.BuildCostEnergy,
             -- Theoretical spend (assigned builpower * mass rate)
             theoreticalSpend = 0,
             -- Actual spend as measured
@@ -154,6 +160,12 @@ JobDistributor = Class({
                 while i <= job.data.numExecutors do
                     local executor = job.data.executors[i]
                     if executor.complete then
+                        -- Clear out the executor
+                        if i < job.data.numExecutors then
+                            job.data.executors[i] = job.data.executors[job.data.numExecutors]
+                        end
+                        job.data.executors[job.data.numExecutors] = nil
+                        job.data.numExecutors = job.data.numExecutors - 1
                         -- Update job data state
                         executor:CompleteJob(job)
                         if not isStructureJob then
@@ -165,21 +177,20 @@ JobDistributor = Class({
                         end
                         -- Reassign builders
                         if (not isStructureJob) and executor.mainBuilder and (not executor.mainBuilder.Dead) then
+                            executor.mainBuilder.FlowAI.ProductionAssigned = false
                             self:FindMobileJob(executor.mainBuilder)
                         elseif isStructureJob and executor.mainBuilder and (not executor.mainBuilder.Dead) then
                             self:FindStructureJob(executor.mainBuilder)
                         end
-                        for _, engie in executor.subsidiaryEngies do
+                        local j = 1
+                        while j < executor.numEngies do
+                            local engie = executor.subsidiaryEngies[j]
                             if engie and (not engie.Dead) then
+                                engie.FlowAI.ProductionAssigned = false
                                 self:FindMobileJob(engie)
                             end
+                            j = j+1
                         end
-                        -- Clear out the executor
-                        if i < job.data.numExecutors then
-                            job.data.executors[i] = job.data.executors[job.data.numExecutors]
-                        end
-                        job.data.executors[job.data.numExecutors] = nil
-                        job.data.numExecutors = job.data.numExecutors - 1
                     else
                         i = i+1
                     end
@@ -235,9 +246,8 @@ JobDistributor = Class({
     end,
 
     FindMobileJob = function(self,engie)
-        -- Precondition: engie is not dead!
+        -- Precondition: engie is not dead, and also not assigned.
         local start = PROFILER:Now()
-        engie.FlowAI.ProductionAssigned = false
         local bestJob = nil
         local bestExecutor = nil
         local bestPriority = SMALL_NEGATIVE
@@ -351,8 +361,24 @@ JobDistributor = Class({
 
     StartAssistExecutorPriority = function(self,job,executor,engie)
         -- Return the priority for assisting 'executor' with 'engie' (under the given job).
-        -- TODO
-        return -1
+        -- TODO: Check assist ratio
+        -- TODO: Check job proximity
+        -- TODO: Remove upscaling bodge job
+        -- Check if this job allows assists
+        if not job.specification.assist then
+            return -1
+        end
+        -- Check job hasn't yet finished
+        if executor.complete then
+            return -1
+        end
+        local bp = engie:GetBlueprint()
+        -- Calculate and return priority of this job.  Spend requirement checking is implicit (TODO).
+        if job.specification.prioritySwitch then
+            return 1.1*(1 - job.data.numExecutors/math.min(job.specification.count,job.specification.duplicates) - SMALL_NEGATIVE)
+        else
+            return 1.1*(1 - ((job.data.totalBuildpower+bp.Economy.BuildRate)*job.data.massSpendRate)/job.specification.targetSpend - SMALL_NEGATIVE)
+        end
     end,
 
     FindBuildLocation = function(self,job,engie)
@@ -389,12 +415,11 @@ JobDistributor = Class({
             WARN("Build location not found for: "..tostring(job.specification.unitBlueprintID))
             return
         end
-        -- TODO: handle failures to find build locations
+        engie.FlowAI.ProductionAssigned = true
         executor:Init(engie,job,buildLocation,buildID,self.brain)
         job.data.numExecutors = job.data.numExecutors + 1
         job.data.executors[job.data.numExecutors] = executor
         executor:Run()
-        engie.FlowAI.ProductionAssigned = true
     end,
 
     StartFactoryExecutor = function(self,job,factory)
@@ -404,22 +429,22 @@ JobDistributor = Class({
         job.data.numExecutors = job.data.numExecutors + 1
         job.data.executors[job.data.numExecutors] = executor
         executor:Run()
-        factory.FlowAI.ProductionAssigned = true
     end,
 
     StartUpgradeExecutor = function(self,job,structure)
         -- Given a structure and a job to start, create an executor (and maintain associated state).
         local executor = UpgradeJobExecutor()
+        structure.FlowAI.ProductionAssigned = true
         executor:Init(structure,job,self.brain)
         job.data.numExecutors = job.data.numExecutors + 1
         job.data.executors[job.data.numExecutors] = executor
         executor:Run()
-        structure.FlowAI.ProductionAssigned = true
     end,
 
     AssistExecutor = function(self,job,executor,engie)
         -- Get an engie to assist an existing executor
-        -- TODO
+        engie.FlowAI.ProductionAssigned = true
+        executor:AddEngineer(engie)
     end,
 
     ControlThread = function(self)
