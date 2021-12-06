@@ -256,6 +256,7 @@ GameMap = Class({
         self.markers = {}
         self.components = {}
         self.componentNumbers = { 0, 0, 0, 0, 0 }
+        self.componentSizes = { {}, {}, {}, {}, {} }
         self.xSize = math.floor((PLAYABLE_AREA[3]-PLAYABLE_AREA[1])/self.gap)
         self.zSize = math.floor((PLAYABLE_AREA[4]-PLAYABLE_AREA[2])/self.gap)
         for i = 1, self.xSize do
@@ -406,6 +407,7 @@ GameMap = Class({
                 for k = 1, 5 do
                     if self.components[i][j][k] < 0 then
                         self.componentNumbers[k] = self.componentNumbers[k]+1
+                        self.componentSizes[k][self.componentNumbers[k]] = 0
                         self:GenerateComponent(i,j,k,self.componentNumbers[k])
                     end
                 end
@@ -416,6 +418,7 @@ GameMap = Class({
         local work = {{i0,j0}}
         local workLen = 1
         self.components[i0][j0][k] = componentNumber
+        self.componentSizes[k][componentNumber] = self.componentSizes[k][componentNumber] + 1
         while workLen > 0 do
             local i = work[workLen][1]
             local j = work[workLen][2]
@@ -425,21 +428,25 @@ GameMap = Class({
             if _mij[1] and (self.components[i+1][j][k] < 0) then
                 workLen = workLen+1
                 work[workLen] = {i+1,j}
+                self.componentSizes[k][componentNumber] = self.componentSizes[k][componentNumber] + 1
                 self.components[i+1][j][k] = componentNumber
             end
             if _mij[3] and (self.components[i][j+1][k] < 0) then
                 workLen = workLen+1
                 work[workLen] = {i,j+1}
+                self.componentSizes[k][componentNumber] = self.componentSizes[k][componentNumber] + 1
                 self.components[i][j+1][k] = componentNumber
             end
             if _mij[5] and (self.components[i-1][j][k] < 0) then
                 workLen = workLen+1
                 work[workLen] = {i-1,j}
+                self.componentSizes[k][componentNumber] = self.componentSizes[k][componentNumber] + 1
                 self.components[i-1][j][k] = componentNumber
             end
             if _mij[7] and (self.components[i][j-1][k] < 0) then
                 workLen = workLen+1
                 work[workLen] = {i,j-1}
+                self.componentSizes[k][componentNumber] = self.componentSizes[k][componentNumber] + 1
                 self.components[i][j-1][k] = componentNumber
             end
         end
@@ -482,6 +489,18 @@ GameMap = Class({
         else
             WARN("Unknown layer type found in map:GetMovementLayer - "..tostring(motionType))
             return -1
+        end
+    end,
+    GetComponent = function(self,pos,layer)
+        local i = math.min(math.max(math.floor((pos[1] - PLAYABLE_AREA[1] + self.gap)/self.gap),1),self.xSize)
+        local j = math.min(math.max(math.floor((pos[3] - PLAYABLE_AREA[2] + self.gap)/self.gap),1),self.zSize)
+        return self.components[i][j][layer]
+    end,
+    GetComponentSize = function(self,component,layer)
+        if component > 0 then
+            return self.componentSizes[layer][component]
+        else
+            return 0
         end
     end,
 
