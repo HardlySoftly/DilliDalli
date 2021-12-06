@@ -51,7 +51,7 @@ function CheckLandConnectivity1(x,z,gap)
         if -gMax > g or g > gMax then
             return false
         end
-        if GetTerrainHeight(x+d-1,z) < GetSurfaceHeight(x+d-1,z) then
+        if GetTerrainHeight(x,z+d-1) < GetSurfaceHeight(x,z+d-1) then
             return false
         end
     end
@@ -67,59 +67,31 @@ function CheckLandConnectivity1(x,z,gap)
     end
     return true
 end
---[[ TODO: Ships
+-- Naval / water surface
 function CheckNavalConnectivity0(x,z,gap)
-    local gMax = MAX_GRADIENT
-    if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
+    if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SHIP_CLEARANCE then
         return false
     end
     for d = 1, gap do
-        local g = (GetTerrainHeight(x+d-1,z) - GetTerrainHeight(x+d,z))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        if GetTerrainHeight(x+d-1,z) < GetSurfaceHeight(x+d-1,z) then
-            return false
-        end
-    end
-    for d = 1, gap-1 do
-        local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z+1))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z-1))
-        if -gMax > g or g > gMax then
+        -- No need for gradient checks
+        if GetTerrainHeight(x+d-1,z) >= GetSurfaceHeight(x+d-1,z)-SHIP_CLEARANCE then
             return false
         end
     end
     return true
 end
 function CheckNavalConnectivity1(x,z,gap)
-    local gMax = MAX_GRADIENT
-    if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
+    if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SHIP_CLEARANCE then
         return false
     end
     for d = 1, gap do
-        local g = (GetTerrainHeight(x,z+d-1) - GetTerrainHeight(x,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        if GetTerrainHeight(x+d-1,z) < GetSurfaceHeight(x+d-1,z) then
-            return false
-        end
-    end
-    for d = 1, gap-1 do
-        local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x+1,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x-1,z+d))
-        if -gMax > g or g > gMax then
+        -- No need for gradient checks
+        if GetTerrainHeight(x,z+d-1) >= GetSurfaceHeight(x,z+d-1)-SHIP_CLEARANCE then
             return false
         end
     end
     return true
-end]]
+end
 -- Hover
 function CheckHoverConnectivity0(x,z,gap)
     local gMax = MAX_GRADIENT
@@ -261,7 +233,6 @@ GameMap = Class({
         LOG('FlowAI framework: CreateMapMarkers() started!')
         local START = GetSystemTimeSecondsOnlyForProfileUse()
         self:CreateMapMarkers()
-        self:InitZones()
         local END = GetSystemTimeSecondsOnlyForProfileUse()
         LOG(string.format('FlowAI framework: CreateMapMarkers() finished, runtime: %.2f seconds.', END - START ))
         local drawStuffz = false
@@ -315,6 +286,8 @@ GameMap = Class({
         local z0 = PLAYABLE_AREA[2]
         local CLC0 = CheckLandConnectivity0
         local CLC1 = CheckLandConnectivity1
+        local CNC0 = CheckNavalConnectivity0
+        local CNC1 = CheckNavalConnectivity1
         local CHC0 = CheckHoverConnectivity0
         local CHC1 = CheckHoverConnectivity1
         local CAC0 = CheckAmphibiousConnectivity0
@@ -329,10 +302,13 @@ GameMap = Class({
                 local _mi1j = _mi1[j]
                 local z = z0 - gap + j*gap
                 local land = CLC0(x,z,gap)
+                local navy = CNC0(x,z,gap)
                 local hover = CHC0(x,z,gap)
                 local amph = CAC0(x,z,gap)
                 _mij[1][1] = land
                 _mi1j[1][5] = land
+                _mij[2][1] = navy
+                _mi1j[2][5] = navy
                 _mij[3][1] = hover
                 _mi1j[3][5] = hover
                 _mij[4][1] = amph
@@ -348,10 +324,13 @@ GameMap = Class({
                 local _mij1 = _mi[j+1]
                 local z = z0 - gap + j*gap
                 local land = CLC1(x,z,gap)
+                local navy = CNC1(x,z,gap)
                 local hover = CHC1(x,z,gap)
                 local amph = CAC1(x,z,gap)
                 _mij[1][3] = land
                 _mij1[1][7] = land
+                _mij[2][3] = navy
+                _mij1[2][7] = navy
                 _mij[3][3] = hover
                 _mij1[3][7] = hover
                 _mij[4][3] = amph
@@ -368,10 +347,13 @@ GameMap = Class({
                 local _mij1 = _mi[j-1]
                 local _mi1j1 = _mi1[j-1]
                 local land = _mij[1][1] and _mij[1][7] and _mi1j[1][7] and _mij1[1][1]
+                local navy = _mij[2][1] and _mij[2][7] and _mi1j[2][7] and _mij1[2][1]
                 local hover = _mij[3][1] and _mij[3][7] and _mi1j[3][7] and _mij1[3][1]
                 local amph = _mij[4][1] and _mij[4][7] and _mi1j[4][7] and _mij1[4][1]
                 _mij[1][8] = land
                 _mi1j1[1][4] = land
+                _mij[2][8] = navy
+                _mi1j1[2][4] = navy
                 _mij[3][8] = hover
                 _mi1j1[3][4] = hover
                 _mij[4][8] = amph
@@ -388,10 +370,13 @@ GameMap = Class({
                 local _mij1 = _mi[j+1]
                 local _mi1j1 = _mi1[j+1]
                 local land = _mij[1][1] and _mij[1][3] and _mi1j[1][3] and _mij1[1][1]
+                local navy = _mij[2][1] and _mij[2][3] and _mi1j[2][3] and _mij1[2][1]
                 local hover = _mij[3][1] and _mij[3][3] and _mi1j[3][3] and _mij1[3][1]
                 local amph = _mij[4][1] and _mij[4][3] and _mi1j[4][3] and _mij1[4][1]
                 _mij[1][2] = land
                 _mi1j1[1][6] = land
+                _mij[2][2] = navy
+                _mi1j1[2][6] = navy
                 _mij[3][2] = hover
                 _mi1j1[3][6] = hover
                 _mij[4][2] = amph
@@ -458,8 +443,6 @@ GameMap = Class({
                 self.components[i][j-1][k] = componentNumber
             end
         end
-    end,
-    InitZones = function(self)
     end,
     CanPathTo = function(self,pos0,pos1,layer)
         local i0 = math.min(math.max(math.floor((pos0[1] - PLAYABLE_AREA[1] + self.gap)/self.gap),1),self.xSize)
