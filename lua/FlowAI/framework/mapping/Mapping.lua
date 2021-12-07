@@ -25,7 +25,7 @@ end
     Sorry for the inlining of functions, the repetitive code blocks, and the constant localling of variables :)
   ]]
 
-TARGET_MARKERS = 180000
+TARGET_MARKERS = 120000
 MIN_GAP = 5
 MAX_GRADIENT = 0.5
 SHIP_CLEARANCE = 1.0
