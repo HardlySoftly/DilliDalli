@@ -11,8 +11,8 @@
 
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
-local GetMarkers = import("/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua").GetMarkers
-local MAP = import("/mods/DilliDalli/lua/FlowAI/framework/Mapping.lua").GetMap()
+local GetMarkers = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMarkers
+local MAP = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMap()
 
 local _OFFSETS = {
     -- Orientation to search in = {X, Z, {{next X, next Z, next Last}, ...}}

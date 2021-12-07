@@ -1,5 +1,6 @@
 --local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
---local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
+
 
 --[[
     This code is largely written with performance in mind over readability.
@@ -9,10 +10,11 @@
     Sorry for the inlining of functions, the repetitive code blocks, and the constant localling of variables :)
   ]]
 
-TARGET_MARKERS = 12000
+TARGET_MARKERS = 180000
 MIN_GAP = 5
 MAX_GRADIENT = 0.5
 SHIP_CLEARANCE = 1.0
+SQRT_2 = math.sqrt(2)
 
 -- Land
 function CheckLandConnectivity0(x,z,gap)
@@ -233,15 +235,20 @@ GameMap = Class({
         LOG('FlowAI framework: CreateMapMarkers() started!')
         local START = GetSystemTimeSecondsOnlyForProfileUse()
         self:CreateMapMarkers()
+        self.zoneSets = {}
+        self.numZoneSets = 0
         local END = GetSystemTimeSecondsOnlyForProfileUse()
         LOG(string.format('FlowAI framework: CreateMapMarkers() finished, runtime: %.2f seconds.', END - START ))
         local drawStuffz = false
         if drawStuffz then
             ForkThread(
                 function()
+                    local zoneSetCopy = self:GetZoneSet('LayerZoneSet',1)
                     coroutine.yield(100)
                     while true do
-                        self:DrawLand()
+                        --self:DrawLayer(3)
+                        self:DrawZones(zoneSetCopy.index)
+                        zoneSetCopy:DrawZones()
                         WaitTicks(2)
                     end
                 end
@@ -252,16 +259,18 @@ GameMap = Class({
     CreateMapMarkers = function(self)
         -- Step 1: Initialise arrays of points to the correct size, and record offsets for position translation
         local area = (PLAYABLE_AREA[3]-PLAYABLE_AREA[1]) * (PLAYABLE_AREA[4]-PLAYABLE_AREA[2])
-        self.gap = math.max(MIN_GAP,math.floor(math.sqrt(area/TARGET_MARKERS)))
+        self.gap = math.max(MIN_GAP,math.ceil(math.sqrt(area/TARGET_MARKERS)))
         self.markers = {}
         self.components = {}
         self.componentNumbers = { 0, 0, 0, 0, 0 }
         self.componentSizes = { {}, {}, {}, {}, {} }
+        self.zones = {}
         self.xSize = math.floor((PLAYABLE_AREA[3]-PLAYABLE_AREA[1])/self.gap)
         self.zSize = math.floor((PLAYABLE_AREA[4]-PLAYABLE_AREA[2])/self.gap)
         for i = 1, self.xSize do
             self.markers[i] = {}
             self.components[i] = {}
+            self.zones[i] = {}
             for j = 1, self.zSize do
                 -- [(+1,0), (+1,+1), (0,+1), (-1,+1), (-1,0), (-1,-1), (0,-1), (+1,-1)]
                 self.markers[i][j] = {
@@ -273,6 +282,7 @@ GameMap = Class({
                 }
                 -- [Land, Navy, Hover, Amphibious, Submarine]
                 self.components[i][j] = { 0, 0, 0, 0, 0 }
+                self.zones[i][j] = {}
             end
         end
         -- Step 2: Generate connections
@@ -452,10 +462,10 @@ GameMap = Class({
         end
     end,
     CanPathTo = function(self,pos0,pos1,layer)
-        local i0 = math.min(math.max(math.floor((pos0[1] - PLAYABLE_AREA[1] + self.gap)/self.gap),1),self.xSize)
-        local j0 = math.min(math.max(math.floor((pos0[3] - PLAYABLE_AREA[2] + self.gap)/self.gap),1),self.zSize)
-        local i1 = math.min(math.max(math.floor((pos1[1] - PLAYABLE_AREA[1] + self.gap)/self.gap),1),self.xSize)
-        local j1 = math.min(math.max(math.floor((pos1[3] - PLAYABLE_AREA[2] + self.gap)/self.gap),1),self.zSize)
+        local i0 = self:GetI(pos0[1])
+        local j0 = self:GetJ(pos0[3])
+        local i1 = self:GetI(pos1[1])
+        local j1 = self:GetJ(pos1[3])
         return (self.components[i0][j0][layer] > 0) and (self.components[i0][j0][layer] == self.components[i1][j1][layer])
     end,
     UnitCanPathTo = function(self,unit,pos)
@@ -492,8 +502,8 @@ GameMap = Class({
         end
     end,
     GetComponent = function(self,pos,layer)
-        local i = math.min(math.max(math.floor((pos[1] - PLAYABLE_AREA[1] + self.gap)/self.gap),1),self.xSize)
-        local j = math.min(math.max(math.floor((pos[3] - PLAYABLE_AREA[2] + self.gap)/self.gap),1),self.zSize)
+        local i = self:GetI(pos[1])
+        local j = self:GetJ(pos[3])
         return self.components[i][j][layer]
     end,
     GetComponentSize = function(self,component,layer)
@@ -503,18 +513,181 @@ GameMap = Class({
             return 0
         end
     end,
+    PaintZones = function(self,zoneList,index,layer)
+        local edges = {}
+        for i = 1, self.xSize do
+            for j = 1, self.zSize do
+                self.zones[i][j][index] = {-1,0}
+            end
+        end
+        local work = CreatePriorityQueue()
+        for _, zone in zoneList do
+            local i = self:GetI(zone.pos[1])
+            local j = self:GetI(zone.pos[3])
+            if self.components[i][j][layer] > 0 then
+                work:Queue({priority=0, id=zone.id, i=i, j=j})
+            end
+            edges[zone.id] = {}
+        end
+        while work:Size() > 0 do
+            local item = work:Dequeue()
+            local i = item.i
+            local j = item.j
+            local id = item.id
+            if self.zones[i][j][index][1] < 0 then
+                -- Update and iterate
+                self.zones[i][j][index][1] = item.id
+                self.zones[i][j][index][2] = item.priority
+                if self.markers[i][j][layer][1] then
+                    work:Queue({priority=item.priority+1,i=i+1,j=j,id=id})
+                end
+                if self.markers[i][j][layer][2] then
+                    work:Queue({priority=item.priority+SQRT_2,i=i+1,j=j+1,id=id})
+                end
+                if self.markers[i][j][layer][3] then
+                    work:Queue({priority=item.priority+1,i=i,j=j+1,id=id})
+                end
+                if self.markers[i][j][layer][4] then
+                    work:Queue({priority=item.priority+SQRT_2,i=i-1,j=j+1,id=id})
+                end
+                if self.markers[i][j][layer][5] then
+                    work:Queue({priority=item.priority+1,i=i-1,j=j,id=id})
+                end
+                if self.markers[i][j][layer][6] then
+                    work:Queue({priority=item.priority+SQRT_2,i=i-1,j=j-1,id=id})
+                end
+                if self.markers[i][j][layer][7] then
+                    work:Queue({priority=item.priority+1,i=i,j=j-1,id=id})
+                end
+                if self.markers[i][j][layer][8] then
+                    work:Queue({priority=item.priority+SQRT_2,i=i+1,j=j-1,id=id})
+                end
+            elseif self.zones[i][j][index][1] ~= id then
+                -- Add edge
+                local dist = item.priority+self.zones[i][j][index][2]
+                if not edges[self.zones[i][j][index][1]][id] then
+                    edges[self.zones[i][j][index][1]][id] = {0, dist}
+                    edges[id][self.zones[i][j][index][1]] = {0, dist}
+                end
+                edges[self.zones[i][j][index][1]][id][1] = edges[self.zones[i][j][index][1]][id][1] + 1
+                edges[self.zones[i][j][index][1]][id][2] = math.min(edges[self.zones[i][j][index][1]][id][2],dist)
+                edges[id][self.zones[i][j][index][1]][1] = edges[id][self.zones[i][j][index][1]][1] + 1
+                edges[id][self.zones[i][j][index][1]][2] = math.min(edges[id][self.zones[i][j][index][1]][2],dist)
+                
+            end
+        end
+        local edgeList = {}
+        for id0, v0 in edges do
+            for id1, v1 in v0 do
+                if id0 < id1 then
+                    table.insert(edgeList,{zones={id0,id1},border=v1[1],distance=v1[2]})
+                end
+            end
+        end
+        return edgeList
+    end,
+    GetZoneID = function(self,pos,index)
+        local i = self:GetI(pos[1])
+        local j = self:GetI(pos[3])
+        return self.zones[i][j][index][1]
+    end,
+    AddZoneSet = function(self,ZoneSetClass)
+        self.numZoneSets = self.numZoneSets + 1
+        local zoneSet = ZoneSetClass()
+        zoneSet:Init(self.numZoneSets)
+        zoneSet:GenerateZoneList()
+        self.zoneSets[self.numZoneSets] = zoneSet
+        local zones = zoneSet:GetZones()
+        local edges = self:PaintZones(zones,self.numZoneSets,zoneSet.layer)
+        zoneSet:AddEdges(edges)
+        return self.numZoneSets
+    end,
+    GetZoneSet = function(self, name, layer)
+        for _, zoneSet in self.zoneSets do
+            if (zoneSet.name == name) and (zoneSet.layer == layer) then
+                return self.zoneSets[zoneSet.index]:GetCopy()
+            end
+        end
+        return nil
+    end,
+    GetZoneSetIndex = function(name, layer)
+        for _, zoneSet in self.zoneSets do
+            if (zoneSet.name == name) and (zoneSet.layer == layer) then
+                return zoneSet.index
+            end
+        end
+        return nil
+    end,
+    GetI = function(self,x)
+        return math.min(math.max(math.floor((x - PLAYABLE_AREA[1])/self.gap + 1.5),1),self.xSize)
+    end,
+    GetJ = function(self,z)
+        return math.min(math.max(math.floor((z - PLAYABLE_AREA[2])/self.gap + 1.5),1),self.zSize)
+    end,
 
-    DrawLand = function(self)
+    DrawZones = function(self,index)
         local colours = { 'aa1f77b4', 'aaff7f0e', 'aa2ca02c', 'aad62728', 'aa9467bd', 'aa8c564b', 'aae377c2', 'aa7f7f7f', 'aabcbd22', 'aa17becf' }
         local gap = self.gap
-        local x0 = PLAYABLE_AREA[1]
-        local z0 = PLAYABLE_AREA[2]
+        local x0 = PLAYABLE_AREA[1] - gap
+        local z0 = PLAYABLE_AREA[2] - gap
+        local layer = self.zoneSets[index].layer
         for i=1,self.xSize do
-            local x = x0 - gap + i*gap
+            local x = x0 + (i*gap)
             for j=1,self.zSize do
-                local z = z0 - gap + j*gap
+                local z = z0 + (j*gap)
                 for k=1,8 do
-                    if self.markers[i][j][3][k] then
+                    if self.markers[i][j][layer][k] and (self.zones[i][j][index][1] > 0) then
+                        local x1 = x
+                        local z1 = z
+                        local draw = true
+                        if k == 1 then
+                            x1 = x+gap
+                            draw = self.zones[i][j][index][1] == self.zones[i+1][j][index][1]
+                        elseif k == 2 then
+                            x1 = x+gap
+                            z1 = z+gap
+                            draw = self.zones[i][j][index][1] == self.zones[i+1][j+1][index][1]
+                        elseif k == 3 then
+                            z1 = z+gap
+                            draw = self.zones[i][j][index][1] == self.zones[i][j+1][index][1]
+                        elseif k == 4 then
+                            x1 = x-gap
+                            z1 = z+gap
+                            draw = self.zones[i][j][index][1] == self.zones[i-1][j+1][index][1]
+                        elseif k == 5 then
+                            x1 = x-gap
+                            draw = self.zones[i][j][index][1] == self.zones[i-1][j][index][1]
+                        elseif k == 6 then
+                            x1 = x-gap
+                            z1 = z-gap
+                            draw = self.zones[i][j][index][1] == self.zones[i-1][j-1][index][1]
+                        elseif k == 7 then
+                            z1 = z-gap
+                            draw = self.zones[i][j][index][1] == self.zones[i][j-1][index][1]
+                        else
+                            x1 = x+gap
+                            z1 = z-gap
+                            draw = self.zones[i][j][index][1] == self.zones[i+1][j-1][index][1]
+                        end
+                        if draw then
+                            DrawLine({x,GetSurfaceHeight(x,z),z},{x1,GetSurfaceHeight(x1,z1),z1},colours[math.mod(self.zones[i][j][index][1],10)+1])
+                        end
+                    end
+                end
+            end
+        end
+    end,
+    DrawLayer = function(self,layer)
+        local colours = { 'aa1f77b4', 'aaff7f0e', 'aa2ca02c', 'aad62728', 'aa9467bd', 'aa8c564b', 'aae377c2', 'aa7f7f7f', 'aabcbd22', 'aa17becf' }
+        local gap = self.gap
+        local x0 = PLAYABLE_AREA[1] - gap
+        local z0 = PLAYABLE_AREA[2] - gap
+        for i=1,self.xSize do
+            local x = x0 + i*gap
+            for j=1,self.zSize do
+                local z = z0 + j*gap
+                for k=1,8 do
+                    if self.markers[i][j][layer][k] then
                         local x1 = x
                         local z1 = z
                         if k == 1 then
@@ -538,22 +711,44 @@ GameMap = Class({
                             x1 = x+gap
                             z1 = z-gap
                         end
-                        DrawLine({x,GetSurfaceHeight(x,z),z},{x1,GetSurfaceHeight(x1,z1),z1},colours[math.mod(self.components[i][j][3],10)+1])
+                        DrawLine({x,GetSurfaceHeight(x,z),z},{x1,GetSurfaceHeight(x1,z1),z1},colours[math.mod(self.components[i][j][layer],10)+1])
                     end
                 end
             end
         end
     end,
-
 })
 
 local map = GameMap()
+local zoneSets = {}
 
 local DEFAULT_BORDER = 4
 function BeginSession()
     -- TODO: Detect if a map is required (inc versioning?)
     PLAYABLE_AREA = { DEFAULT_BORDER, DEFAULT_BORDER, ScenarioInfo.size[1], ScenarioInfo.size[2] }
     map:InitMap()
+    local START = GetSystemTimeSecondsOnlyForProfileUse()
+    local LayerZoneSet = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Zones.lua').LayerZoneSet
+    for i=1, 5 do
+        map:AddZoneSet(LayerZoneSet)
+    end
+    local END = GetSystemTimeSecondsOnlyForProfileUse()
+    LOG(string.format('FlowAI framework: Default zone generation finished, runtime: %.2f seconds.', END - START ))
+    -- Now to attempt to load any custom zone set classes
+    START = GetSystemTimeSecondsOnlyForProfileUse()
+    local customZoneSets = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Zones.lua').LoadCustomZoneSets()
+    if table.getn(customZoneSets) > 0 then
+        -- First randomise the table order.
+        -- This forces people to check the ZoneSet data rather than relying on the index being forever the same (which it might not be if more mods get loaded).
+        table.sort(customZoneSets,function(a,b) return Random(0,1) == 1 end)
+        for _, ZoneSetClass in customZoneSets do
+            map:AddZoneSet(ZoneSetClass)
+        end
+        END = GetSystemTimeSecondsOnlyForProfileUse()
+        LOG(string.format('FlowAI framework: Custom zone generation finished, runtime: %.2f seconds.', END - START ))
+    else
+        LOG("FlowAI framework: No custom zoning classes found.")
+    end
 end
 
 function GetMap()
