@@ -1,6 +1,21 @@
 --local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
+-- Preliminary marker and playing area stuff
+local MYOWNMARKERS = {}
+function CreateMarker(t,x,y,z,size)
+    table.insert(MYOWNMARKERS,{type=t,position={x,y,z}})
+end
+function GetMarkers()
+    return MYOWNMARKERS
+end
+
+local DEFAULT_BORDER = 4
+local PLAYABLE_AREA = nil
+function SetPlayableArea(x0,z0,x1,z1)
+    -- Fields of Isis is a bad map, I hate to be the one who has to say it.
+    PLAYABLE_AREA = { x0, z0, x1, z1 }
+end
 
 --[[
     This code is largely written with performance in mind over readability.
@@ -523,7 +538,7 @@ GameMap = Class({
         local work = CreatePriorityQueue()
         for _, zone in zoneList do
             local i = self:GetI(zone.pos[1])
-            local j = self:GetI(zone.pos[3])
+            local j = self:GetJ(zone.pos[3])
             if self.components[i][j][layer] > 0 then
                 work:Queue({priority=0, id=zone.id, i=i, j=j})
             end
@@ -588,7 +603,7 @@ GameMap = Class({
     end,
     GetZoneID = function(self,pos,index)
         local i = self:GetI(pos[1])
-        local j = self:GetI(pos[3])
+        local j = self:GetJ(pos[3])
         return self.zones[i][j][index][1]
     end,
     AddZoneSet = function(self,ZoneSetClass)
@@ -722,10 +737,12 @@ GameMap = Class({
 local map = GameMap()
 local zoneSets = {}
 
-local DEFAULT_BORDER = 4
 function BeginSession()
     -- TODO: Detect if a map is required (inc versioning?)
-    PLAYABLE_AREA = { DEFAULT_BORDER, DEFAULT_BORDER, ScenarioInfo.size[1], ScenarioInfo.size[2] }
+    if not PLAYABLE_AREA then
+        PLAYABLE_AREA = { DEFAULT_BORDER, DEFAULT_BORDER, ScenarioInfo.size[1], ScenarioInfo.size[2] }
+    end
+    _ALERT("Playing area:",repr(PLAYABLE_AREA))
     map:InitMap()
     local START = GetSystemTimeSecondsOnlyForProfileUse()
     local LayerZoneSet = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Zones.lua').LayerZoneSet
@@ -753,19 +770,4 @@ end
 
 function GetMap()
     return map
-end
-
-local MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS = {}
-
-function CreateMarker(t,x,y,z,size)
-    table.insert(MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS,{type=t,position={x,y,z}})
-end
-function GetMarkers()
-    return MYOWNFUCKINGMARKERSYOUADAPTIVEMAPPRICKS
-end
-
-local PLAYABLE_AREA = {}
-function SetPlayableArea(x0,z0,x1,z1)
-    -- Fields of Isis is a bad map, I hate to be the one who has to say it.
-    PLAYABLE_AREA = { x0, z0, x1, z1 }
 end

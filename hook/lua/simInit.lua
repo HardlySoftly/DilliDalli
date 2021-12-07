@@ -17,7 +17,7 @@ end
 
 DilliDalliYeOldeSetPlayableRect = SetPlayableRect
 local DilliDalliSetPlayableArea = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').SetPlayableArea
-SetPlayableRect = function(minx,maxz,maxx,maxz)
-    DilliDalliYeOldeSetPlayableRect(minx,maxz,maxx,maxz)
-    DilliDalliSetPlayableArea(minx,maxz,maxx,maxz)
+SetPlayableRect = function(minx,minz,maxx,maxz)
+    DilliDalliYeOldeSetPlayableRect(minx,minz,maxx,maxz)
+    DilliDalliSetPlayableArea(minx,minz,maxx,maxz)
 end
