@@ -742,8 +742,9 @@ function BeginSession()
     if not PLAYABLE_AREA then
         PLAYABLE_AREA = { DEFAULT_BORDER, DEFAULT_BORDER, ScenarioInfo.size[1], ScenarioInfo.size[2] }
     end
-    _ALERT("Playing area:",repr(PLAYABLE_AREA))
+    -- Initialise map: do grid connections, generate components
     map:InitMap()
+    -- Now load up standard zones
     local START = GetSystemTimeSecondsOnlyForProfileUse()
     local LayerZoneSet = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Zones.lua').LayerZoneSet
     for i=1, 5 do
@@ -762,7 +763,7 @@ function BeginSession()
             map:AddZoneSet(ZoneSetClass)
         end
         END = GetSystemTimeSecondsOnlyForProfileUse()
-        LOG(string.format('FlowAI framework: Custom zone generation finished, runtime: %.2f seconds.', END - START ))
+        LOG(string.format('FlowAI framework: Custom zone generation finished (%d found), runtime: %.2f seconds.', table.getn(customZoneSets), END - START ))
     else
         LOG("FlowAI framework: No custom zoning classes found.")
     end
