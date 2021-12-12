@@ -58,6 +58,9 @@ ZoneSet = Class({
 
     DrawZones = function(self)
         for _, zone in self.zones do
+            if zone.fail then
+                continue
+            end
             DrawCircle(zone.pos,10,'aaffffff')
             for _, edge in zone.edges do
                 -- Only draw each edge once
@@ -68,31 +71,6 @@ ZoneSet = Class({
         end
     end,
 })
-
-LayerZoneSet = Class(ZoneSet){
-    Init = function(self,zoneIndex)
-        ZoneSet.Init(self,zoneIndex)
-        -- You can't copy this class directly and expect it to work.  It implicitely expects self.index to be the layer it is operating in.
-        -- To get your own version working you must change the layer here to what you want.
-        self.layer = self.index
-        -- In your own custom classes please set this to something unique so you can identify your zones later.
-        self.name = 'LayerZoneSet'
-    end,
-    GenerateZoneList = function(self)
-        -- Step 1: Get a set of markers that are pathable from the layer we're currently interested in.
-        local markers = {}
-        for _, marker in GetMarkers() do
-            if MAP:GetComponent(marker.position,self.layer) > 0 then
-                table.insert(markers,marker)
-            end
-        end
-        -- Step 2: Group these and initialise zones.
-        -- TODO: actually do some grouping
-        for _, marker in markers do
-            self:AddZone({pos=marker.position})
-        end
-    end,
-}
 
 function LoadCustomZoneSets()
     local res = {}

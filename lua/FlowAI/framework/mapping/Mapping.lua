@@ -16,6 +16,9 @@ function SetPlayableArea(x0,z0,x1,z1)
     -- Fields of Isis is a bad map, I hate to be the one who has to say it.
     PLAYABLE_AREA = { x0, z0, x1, z1 }
 end
+function GetPlayableArea()
+    return PLAYABLE_AREA
+end
 
 --[[
     This code is largely written with performance in mind over readability.
@@ -258,7 +261,7 @@ GameMap = Class({
         if drawStuffz then
             ForkThread(
                 function()
-                    local zoneSetCopy = self:GetZoneSet('LayerZoneSet',1)
+                    local zoneSetCopy = self:GetZoneSet('ExampleZoneSet',1)
                     coroutine.yield(100)
                     while true do
                         --self:DrawLayer(3)
@@ -541,6 +544,9 @@ GameMap = Class({
             local j = self:GetJ(zone.pos[3])
             if self.components[i][j][layer] > 0 then
                 work:Queue({priority=0, id=zone.id, i=i, j=j})
+                zone.fail = false
+            else
+                zone.fail = true
             end
             edges[zone.id] = {}
         end
@@ -744,25 +750,14 @@ function BeginSession()
     end
     -- Initialise map: do grid connections, generate components
     map:InitMap()
-    -- Now load up standard zones
-    local START = GetSystemTimeSecondsOnlyForProfileUse()
-    local LayerZoneSet = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Zones.lua').LayerZoneSet
-    for i=1, 5 do
-        map:AddZoneSet(LayerZoneSet)
-    end
-    local END = GetSystemTimeSecondsOnlyForProfileUse()
-    LOG(string.format('FlowAI framework: Default zone generation finished, runtime: %.2f seconds.', END - START ))
     -- Now to attempt to load any custom zone set classes
-    START = GetSystemTimeSecondsOnlyForProfileUse()
+    local START = GetSystemTimeSecondsOnlyForProfileUse()
     local customZoneSets = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Zones.lua').LoadCustomZoneSets()
     if table.getn(customZoneSets) > 0 then
-        -- First randomise the table order.
-        -- This forces people to check the ZoneSet data rather than relying on the index being forever the same (which it might not be if more mods get loaded).
-        table.sort(customZoneSets,function(a,b) return Random(0,1) == 1 end)
         for _, ZoneSetClass in customZoneSets do
             map:AddZoneSet(ZoneSetClass)
         end
-        END = GetSystemTimeSecondsOnlyForProfileUse()
+        local END = GetSystemTimeSecondsOnlyForProfileUse()
         LOG(string.format('FlowAI framework: Custom zone generation finished (%d found), runtime: %.2f seconds.', table.getn(customZoneSets), END - START ))
     else
         LOG("FlowAI framework: No custom zoning classes found.")
