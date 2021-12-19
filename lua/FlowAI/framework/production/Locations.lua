@@ -96,17 +96,34 @@ function GenerateAdjacentLocations(sizes,maxSize)
                 maxAdjacent = 0,
                 checkClockwise = math.round(sizePlaced/sizeProspective) ~= (sizePlaced/sizeProspective),
                 clockwiseLocations = {},
-                anticlockwiseLocations = nil,
+                anticlockwiseLocations = {},
                 remainingLocations = {},
             }
-            -- TODO
-            local _adj = ADJACENCY[sizePlaced][sizeProspective]
-            if _adj.checkClockwise then
-                _adj.anticlockwiseLocations = {}
+            -- There is something weird about building placement for odd sized buildings, their centre doesn't line up with their build location
+            -- Skipping odd sized buildings...
+            -- TODO: add odd sized buildings support
+            if (math.mod(sizePlaced,2) == 1) or (math.mod(sizeProspective,2) == 1) then
+                continue
+            end
+            local p = sizePlaced
+            local q = sizeProspective
+            local _adj = ADJACENCY[p][q]
+            local n = math.max(1, math.floor(p/q))
+            _adj.maxAdjacent = 4*n
+            for i=1, n do
+                table.insert(_adj.clockwiseLocations,{(-p/2)+q*(i-0.5), (p+q)/2})
+                table.insert(_adj.clockwiseLocations,{(p+q)/2, (p/2)-q*(i-0.5)})
+                table.insert(_adj.clockwiseLocations,{(p/2)-q*(i-0.5), -(p+q)/2})
+                table.insert(_adj.clockwiseLocations,{-(p+q)/2, (-p/2)+q*(i-0.5)})
+                if _adj.checkClockwise then
+                    table.insert(_adj.anticlockwiseLocations,{(p/2)-q*(i-0.5), (p+q)/2})
+                    table.insert(_adj.anticlockwiseLocations,{(p+q)/2, (-p/2)+q*(i-0.5)})
+                    table.insert(_adj.anticlockwiseLocations,{(-p/2)+q*(i-0.5), -(p+q)/2})
+                    table.insert(_adj.anticlockwiseLocations,{-(p+q)/2, (p/2)-q*(i-0.5)})
+                end
             end
         end
     end
-    --LOG(repr(ADJACENCY))
     local END = GetSystemTimeSecondsOnlyForProfileUse()
     LOG(string.format('FlowAI framework: Adjacency generation finished, runtime: %.2f seconds.', END - START ))
 end
