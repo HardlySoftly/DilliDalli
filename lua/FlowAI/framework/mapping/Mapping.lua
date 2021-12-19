@@ -487,7 +487,7 @@ GameMap = Class({
         return (self.components[i0][j0][layer] > 0) and (self.components[i0][j0][layer] == self.components[i1][j1][layer])
     end,
     UnitCanPathTo = function(self,unit,pos)
-        local layer = self:GetMovementLayer(unit)
+        local layer = self:GetMovementLayerBlueprint(unit:GetBlueprint())
         if layer == -1 then
             return false
         elseif layer == 0 then
@@ -498,8 +498,11 @@ GameMap = Class({
         end
     end,
     GetMovementLayer = function(self,unit)
+        return self:GetMovementLayerBlueprint(unit:GetBlueprint())
+    end,
+    GetMovementLayerBlueprint = function(self,bp)
         -- -1 => cannot move, 0 => air unit, otherwise chooses best matching layer index
-        local motionType = unit:GetBlueprint().Physics.MotionType
+        local motionType = bp.Physics.MotionType
         if (not motionType) or motionType == "RULEUMT_None" then
             return -1
         elseif motionType == "RULEUMT_Air" then
@@ -587,21 +590,34 @@ GameMap = Class({
                 -- Add edge
                 local dist = item.priority+self.zones[i][j][index][2]
                 if not edges[self.zones[i][j][index][1]][id] then
-                    edges[self.zones[i][j][index][1]][id] = {0, dist}
-                    edges[id][self.zones[i][j][index][1]] = {0, dist}
+                    edges[self.zones[i][j][index][1]][id] = {0, dist, i, j}
+                    edges[id][self.zones[i][j][index][1]] = {0, dist, i, j}
                 end
                 edges[self.zones[i][j][index][1]][id][1] = edges[self.zones[i][j][index][1]][id][1] + 1
-                edges[self.zones[i][j][index][1]][id][2] = math.min(edges[self.zones[i][j][index][1]][id][2],dist)
                 edges[id][self.zones[i][j][index][1]][1] = edges[id][self.zones[i][j][index][1]][1] + 1
-                edges[id][self.zones[i][j][index][1]][2] = math.min(edges[id][self.zones[i][j][index][1]][2],dist)
-                
+                if dist < edges[self.zones[i][j][index][1]][id][2] then
+                    edges[self.zones[i][j][index][1]][id][2] = dist
+                    edges[self.zones[i][j][index][1]][id][3] = i
+                    edges[self.zones[i][j][index][1]][id][4] = j
+                    edges[id][self.zones[i][j][index][1]][2] = dist
+                    edges[id][self.zones[i][j][index][1]][3] = i
+                    edges[id][self.zones[i][j][index][1]][4] = j
+                end
             end
         end
         local edgeList = {}
         for id0, v0 in edges do
             for id1, v1 in v0 do
                 if id0 < id1 then
-                    table.insert(edgeList,{zones={id0,id1},border=v1[1],distance=v1[2]})
+                    local x = self:GetX(v1[3])
+                    local z = self:GetZ(v1[4])
+                    local y = nil
+                    if layer < 4 then
+                        y = GetSurfaceHeight(x,z)
+                    else
+                        y = GetTerrainHeight(x,z)
+                    end
+                    table.insert(edgeList,{zones={id0,id1},border=v1[1],distance=v1[2],midpoint={x, y, z}})
                 end
             end
         end
@@ -644,6 +660,12 @@ GameMap = Class({
     end,
     GetJ = function(self,z)
         return math.min(math.max(math.floor((z - PLAYABLE_AREA[2])/self.gap + 1.5),1),self.zSize)
+    end,
+    GetX = function(self,i)
+        return PLAYABLE_AREA[1] - self.gap + (i*self.gap)
+    end,
+    GetZ = function(self,j)
+        return PLAYABLE_AREA[2] - self.gap + (j*self.gap)
     end,
 
     DrawZones = function(self,index)

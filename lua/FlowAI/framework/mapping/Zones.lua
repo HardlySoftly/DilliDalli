@@ -28,8 +28,8 @@ ZoneSet = Class({
     InitEdges = function(self,edges)
         -- Initialise edge references from the edge table provided by the map.
         for _, edge in edges do
-            table.insert(self:GetZone(edge.zones[1]).edges,{zone = self:GetZone(edge.zones[2]), border=edge.border, distance=edge.distance})
-            table.insert(self:GetZone(edge.zones[2]).edges,{zone = self:GetZone(edge.zones[1]), border=edge.border, distance=edge.distance})
+            table.insert(self:GetZone(edge.zones[1]).edges,{zone = self:GetZone(edge.zones[2]), border=edge.border, distance=edge.distance, midpoint=edge.midpoint})
+            table.insert(self:GetZone(edge.zones[2]).edges,{zone = self:GetZone(edge.zones[1]), border=edge.border, distance=edge.distance, midpoint=edge.midpoint})
         end
     end,
 
@@ -65,7 +65,8 @@ ZoneSet = Class({
             for _, edge in zone.edges do
                 -- Only draw each edge once
                 if zone.id < edge.zone.id then
-                    DrawLine(zone.pos,edge.zone.pos,'aa000000')
+                    DrawLine(zone.pos,edge.midpoint,'aa000000')
+                    DrawLine(edge.midpoint,edge.zone.pos,'aa000000')
                 end
             end
         end
