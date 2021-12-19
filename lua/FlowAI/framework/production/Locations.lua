@@ -80,6 +80,37 @@ function GenerateCoords(x, z, last, instructions, radius)
     return coords
 end
 
+local ADJACENCY = nil
+function GenerateAdjacentLocations(sizes,maxSize)
+    local START = GetSystemTimeSecondsOnlyForProfileUse()
+    ADJACENCY = {}
+    for i=1, maxSize do
+        ADJACENCY[i] = {}
+        for j = 1, maxSize do
+            ADJACENCY[i][j] = {}
+        end
+    end
+    for _, sizePlaced in sizes do
+        for _, sizeProspective in sizes do
+            ADJACENCY[sizePlaced][sizeProspective] = {
+                maxAdjacent = 0,
+                checkClockwise = math.round(sizePlaced/sizeProspective) ~= (sizePlaced/sizeProspective),
+                clockwiseLocations = {},
+                anticlockwiseLocations = nil,
+                remainingLocations = {},
+            }
+            -- TODO
+            local _adj = ADJACENCY[sizePlaced][sizeProspective]
+            if _adj.checkClockwise then
+                _adj.anticlockwiseLocations = {}
+            end
+        end
+    end
+    --LOG(repr(ADJACENCY))
+    local END = GetSystemTimeSecondsOnlyForProfileUse()
+    LOG(string.format('FlowAI framework: Adjacency generation finished, runtime: %.2f seconds.', END - START ))
+end
+
 Location = Class({
     Init = function(self,x,z,radius)
         self.x = x
@@ -187,7 +218,6 @@ MarkerManager = Class({
         local i = 1
         while i <= self.numMarkers do
             -- TODO: reduce number of 'CanBuildOnMarker' checks here
-            -- TODO: check pathability
             if (self.markers[i].type == markerType) and (not self.markers[i].claimed)
                                                     and self:CanBuildOnMarker(self.markers[i].position)
                                                     and MAP:UnitCanPathTo(engie,self.markers[i].position) then
