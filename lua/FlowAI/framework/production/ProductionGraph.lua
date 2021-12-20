@@ -43,6 +43,9 @@ local function CanMake(bp0,bp1)
 end
 
 function LoadProductionGraph()
+    if PRODUCTION_GRAPH then
+        return
+    end
     local START = GetSystemTimeSecondsOnlyForProfileUse()
     PRODUCTION_GRAPH = {}
     local adjacencySizes = {}
@@ -70,13 +73,13 @@ function LoadProductionGraph()
             if cat == "MOBILE" then
                 PRODUCTION_GRAPH[k].mobile = true
             elseif cat == "STRUCTURE" then
-                PRODUCTION_GRAPH[k].stucture = true
+                PRODUCTION_GRAPH[k].structure = true
             end
             if cat == "SUPPORTFACTORY" then
                 ENGIE_MOD_FLAG = true
             end
         end
-        if PRODUCTION_GRAPH[k].stucture then
+        if PRODUCTION_GRAPH[k].structure then
             -- If it is a structure, extract size + layer information.
             PRODUCTION_GRAPH[k].layers = {
                 land = bp.Physics.BuildOnLayerCaps.LAYER_Land,
@@ -146,6 +149,10 @@ function LoadProductionGraph()
 end
 
 function GetProductionGraph()
+    -- TODO: attempt to load this fewer times
+    if not PRODUCTION_GRAPH then
+        LoadProductionGraph()
+    end
     return PRODUCTION_GRAPH
 end
 
