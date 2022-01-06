@@ -8,6 +8,7 @@ AIBrain = Class(DilliDalliYeOldeAIBrainClass) {
         if string.find(per, 'DilliDalliAIKey') then
             -- I don't call the standard OnCreateAI here, so do any necessary initialisation.
             self:CreateBrainShared(planName)
+            self.BrainType = 'AI'
             LOG('Initialising DilliDalli AI - Name: ('..self.Name..') - personality: ('..per..') ')
             self.DilliDalli = true
             self.DilliDalliBrain = CreateDilliDalliBrain(self)
