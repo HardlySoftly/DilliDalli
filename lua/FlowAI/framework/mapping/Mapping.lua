@@ -28,14 +28,19 @@ end
     Sorry for the inlining of functions, the repetitive code blocks, and the constant localling of variables :)
   ]]
 
-TARGET_MARKERS = 120000
-MIN_GAP = 5
-MAX_GRADIENT = 0.5
-SHIP_CLEARANCE = 1.0
-SQRT_2 = math.sqrt(2)
+local TARGET_MARKERS = 120000
+local MIN_GAP = 5
+local MAX_GRADIENT = 0.5
+-- Ship and submarine clearance seem to both be for the same depths...
+local SHIP_CLEARANCE = 1.5
+local SUB_CLEARANCE = 1.5
+-- Ditch separate sub layer in favour of using naval layer for submarines too
+local NUM_LAYERS = 4
+
+local SQRT_2 = math.sqrt(2)
 
 -- Land
-function CheckLandConnectivity0(x,z,gap)
+local function CheckLandConnectivity0(x,z,gap)
     local gMax = MAX_GRADIENT
     if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
         return false
@@ -61,7 +66,7 @@ function CheckLandConnectivity0(x,z,gap)
     end
     return true
 end
-function CheckLandConnectivity1(x,z,gap)
+local function CheckLandConnectivity1(x,z,gap)
     local gMax = MAX_GRADIENT
     if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
         return false
@@ -88,7 +93,7 @@ function CheckLandConnectivity1(x,z,gap)
     return true
 end
 -- Naval / water surface
-function CheckNavalConnectivity0(x,z,gap)
+local function CheckNavalConnectivity0(x,z,gap)
     if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SHIP_CLEARANCE then
         return false
     end
@@ -100,7 +105,7 @@ function CheckNavalConnectivity0(x,z,gap)
     end
     return true
 end
-function CheckNavalConnectivity1(x,z,gap)
+local function CheckNavalConnectivity1(x,z,gap)
     if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SHIP_CLEARANCE then
         return false
     end
@@ -113,7 +118,7 @@ function CheckNavalConnectivity1(x,z,gap)
     return true
 end
 -- Hover
-function CheckHoverConnectivity0(x,z,gap)
+local function CheckHoverConnectivity0(x,z,gap)
     local gMax = MAX_GRADIENT
     for d = 1, gap do
         local g = (GetSurfaceHeight(x+d-1,z) - GetSurfaceHeight(x+d,z))
@@ -133,7 +138,7 @@ function CheckHoverConnectivity0(x,z,gap)
     end
     return true
 end
-function CheckHoverConnectivity1(x,z,gap)
+local function CheckHoverConnectivity1(x,z,gap)
     local gMax = MAX_GRADIENT
     for d = 1, gap do
         local g = (GetSurfaceHeight(x,z+d-1) - GetSurfaceHeight(x,z+d))
@@ -154,7 +159,7 @@ function CheckHoverConnectivity1(x,z,gap)
     return true
 end
 -- Amphibious
-function CheckAmphibiousConnectivity0(x,z,gap)
+local function CheckAmphibiousConnectivity0(x,z,gap)
     local gMax = MAX_GRADIENT
     for d = 1, gap do
         local g = (GetTerrainHeight(x+d-1,z) - GetTerrainHeight(x+d,z))
@@ -174,7 +179,7 @@ function CheckAmphibiousConnectivity0(x,z,gap)
     end
     return true
 end
-function CheckAmphibiousConnectivity1(x,z,gap)
+local function CheckAmphibiousConnectivity1(x,z,gap)
     local gMax = MAX_GRADIENT
     for d = 1, gap do
         local g = (GetTerrainHeight(x,z+d-1) - GetTerrainHeight(x,z+d))
@@ -194,54 +199,26 @@ function CheckAmphibiousConnectivity1(x,z,gap)
     end
     return true
 end
---[[ TODO: subs
-function CheckLandConnectivity0(x,z,gap)
-    local gMax = MAX_GRADIENT
-    if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
+--[[ To not do: subs since the check is the same as for ships right now...
+local function CheckSubmarineConnectivity0(x,z,gap)
+    if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SUB_CLEARANCE then
         return false
     end
     for d = 1, gap do
-        local g = (GetTerrainHeight(x+d-1,z) - GetTerrainHeight(x+d,z))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        if GetTerrainHeight(x+d-1,z) < GetSurfaceHeight(x+d-1,z) then
-            return false
-        end
-    end
-    for d = 1, gap-1 do
-        local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z+1))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z-1))
-        if -gMax > g or g > gMax then
+        -- No need for gradient checks
+        if GetTerrainHeight(x+d-1,z) >= GetSurfaceHeight(x+d-1,z)-SUB_CLEARANCE then
             return false
         end
     end
     return true
 end
-function CheckLandConnectivity1(x,z,gap)
-    local gMax = MAX_GRADIENT
-    if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
+local function CheckSubmarineConnectivity1(x,z,gap)
+    if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SUB_CLEARANCE then
         return false
     end
     for d = 1, gap do
-        local g = (GetTerrainHeight(x,z+d-1) - GetTerrainHeight(x,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        if GetTerrainHeight(x+d-1,z) < GetSurfaceHeight(x+d-1,z) then
-            return false
-        end
-    end
-    for d = 1, gap-1 do
-        local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x+1,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x-1,z+d))
-        if -gMax > g or g > gMax then
+        -- No need for gradient checks
+        if GetTerrainHeight(x,z+d-1) >= GetSurfaceHeight(x,z+d-1)-SUB_CLEARANCE then
             return false
         end
     end
@@ -296,10 +273,10 @@ GameMap = Class({
                     { false, false, false, false, false, false, false, false }, -- Navy
                     { false, false, false, false, false, false, false, false }, -- Hover
                     { false, false, false, false, false, false, false, false }, -- Amphibious
-                    { false, false, false, false, false, false, false, false }  -- Submarine
+                    --{ false, false, false, false, false, false, false, false }  -- Submarine (use navy layer)
                 }
-                -- [Land, Navy, Hover, Amphibious, Submarine]
-                self.components[i][j] = { 0, 0, 0, 0, 0 }
+                -- [Land, Navy, Hover, Amphibious, --Submarine]
+                self.components[i][j] = { 0, 0, 0, 0 } --, 0 }
                 self.zones[i][j] = {}
             end
         end
@@ -420,7 +397,7 @@ GameMap = Class({
             local _mi = markers[i]
             for j = 1, self.zSize do
                 local _mij = _mi[j]
-                for k = 1, 5 do
+                for k = 1, NUM_LAYERS do
                     local _mijk = _mij[k]
                     -- Init if a connection exists
                     if _mijk[1] or _mijk[2] or _mijk[3] or _mijk[4] or _mijk[5] or _mijk[6] or _mijk[7] or _mijk[8] then
@@ -432,7 +409,7 @@ GameMap = Class({
         -- Generate a component for each uninitialised marker
         for i = 1, self.xSize do
             for j = 1, self.zSize do
-                for k = 1, 5 do
+                for k = 1, NUM_LAYERS do
                     if self.components[i][j][k] < 0 then
                         self.componentNumbers[k] = self.componentNumbers[k]+1
                         self.componentSizes[k][self.componentNumbers[k]] = 0
@@ -516,7 +493,8 @@ GameMap = Class({
         elseif "RULEUMT_Amphibious" then
             return 4
         elseif motionType == "RULEUMT_SurfacingSub" then
-            return 5
+            -- Use navy layer since required required water clearance is the same
+            return 2
         else
             WARN("Unknown layer type found in map:GetMovementLayer - "..tostring(motionType))
             return -1
