@@ -76,17 +76,18 @@ ZoneSet = Class({
 function LoadCustomZoneSets()
     local res = {}
     local simMods = __active_mods or {}
-    for _, ModData in simMods do
-        local customZoneSetFiles = DiskFindFiles(ModData.location..'/lua/FlowAI/framework/mapping/CustomZones', '*.lua')
-        for _, file in customZoneSetFiles do
-            local GetZoneSetClasses = import(file).GetZoneSetClasses
-            if GetZoneSetClasses then
-                local zoneSetClasses = GetZoneSetClasses()
-                for _, ZoneSetClass in zoneSetClasses do
-                    table.insert(res,ZoneSetClass)
-                end
+    --for _, ModData in simMods do
+    --local customZoneSetFiles = DiskFindFiles(ModData.location..'/lua/FlowAI/framework/mapping/CustomZones', '*.lua')
+    local customZoneSetFiles = DiskFindFiles('/mods/DilliDalli/lua/FlowAI/framework/mapping/CustomZones', '*.lua')
+    for _, file in customZoneSetFiles do
+        local GetZoneSetClasses = import(file).GetZoneSetClasses
+        if GetZoneSetClasses then
+            local zoneSetClasses = GetZoneSetClasses()
+            for _, ZoneSetClass in zoneSetClasses do
+                table.insert(res,ZoneSetClass)
             end
         end
     end
+    --end
     return res
 end
