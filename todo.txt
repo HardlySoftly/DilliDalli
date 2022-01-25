@@ -1,0 +1,107 @@
+Adjacency management
+    Identify structures that may be involved in adjacency requirements
+    On construction start, register possible adjacent locations (checking for buildable locations)
+    Periodically revisit these locations in case of change? (or check on attempting access?)
+    Identify overlapping other buildings and flag for possible reclamation
+    Provide means to count available adjacencies of any given type
+    Provide means to fetch next best location for an adjacency of any given type (subject to safety/bp/component requirements)
+    Periodically search all units to add new locations as relevant
+Mass Manager
+    Identify all options for increasing mass income, and calculate benefits
+    Given delegated resources and current tech level / units, select best option for increasing mass
+    Manage/Create associated jobs
+    Prompt construction of relevant defences
+    Provide interface for requesting reclamation of associated units for unit cap reasons
+Energy Manager
+    Identify all options for increasing energy income, and calculate benefits
+    Given delegated resources and current tech level / units, select best option for increasing energy
+    Manage/Create associated jobs
+    Prompt construction of relevant defences
+    Provide interface for requesting reclamation of associated units for unit cap reasons
+Buildpower Manager
+    Track usage of BP by category
+    Identify under-funded jobs
+    Identify construction chains leading to new kinds of BP
+    Manage construction of new BP where required
+    Support component / location restrictions
+    Respect production temperature tuning - namely the maximisation of unit production over BP for a provided time period (within the provided budget)
+    Determine best kinds of generic mobile BP
+    Provide interface for getting the investment cost of higher tech levels of BP
+        Monitor and track this for all tech tiers as the game progresses
+    Identify and adapt to engiemod and non-engiemod balances
+    Provide interface for requesting reclamation of associated units for unit cap reasons
+Production Manager
+    Land / Navy / Air (inc experimental options for all three) applies to all of the below
+    Analyse unit stats to inform unit composition decisions
+    Make unit composition decisions based on resources, intel, available BP, and unit stats.
+    Manage production jobs (tanks, planes, etc but NOT factories - this is done by BP manager)
+    Use estimates from BP manager to make teching decisions, submitting higher tier units as relevant
+    Component aware - no use building land or navy on/in the wrong island/pool
+    Provide interface for requesting reclamation of associated units for unit cap reasons
+Defence Manager
+    Similar to production manager, but focussed on structures
+    Respond to prompts from various places to make new defensive structures (Shields, TMD, AA, PD, Arty, SMD)
+    Manage associated jobs
+    Negotiate resources to complete defensive work
+    Provide interface for requesting reclamation of associated units for unit cap reasons
+Intel
+    Monitor own/allied/enemy force disposition across the map (at a per component level)
+    Monitor enemy unit composition
+    Monitor enemy spending focus (ecoing, land, air, nukes, etc) for predictive responses (not just reactive to completion of those units)
+    Estimate enemy economies / track allied economies
+    Monitor available reclaim in coordination with Reclaim Manager (i.e. observe enemy going for it)
+    Monitor for transportation opportunities and threats
+    Direct and control intel assets (namely scout planes)
+        Also manage associated jobs
+    Identify radar / sonar locations
+        Also manage associated jobs
+        Manage the turning off / upgrading of these structures (e.g. during power stalls)
+    Prompt for defences in specific locations
+        e.g. TML spotted, prompt for TMD to defend mexes / bases
+             Shields vs Air unit threats
+             SMDs vs nukes, etc
+    Provide threat estimations to bias jobs to safer locations (upgrade safest mexes first for example)
+Unit Control
+    Land / Air / Naval / Misc (artillery, TML, Nukes) unit control
+    Focuses
+        Acquisition / Denial of reclaim resources
+        Acquisition / Denial of marker resources (mass points, hydros)
+        Protection of own structures, destruction of enemy structures
+        Survival of own units, destruction of enemy units
+    Be aware of giving away reclaim
+    Be aware of map features
+    Take into account intel provided information
+    Engagement stance to be informed by overall balance of power in game - i.e. more aggressive if holding a greater advantage
+Reclaim Manager
+    Focus on acquisition of mass by reclaim
+    Limited coordination with Mass Manager, more mass always good, but maybe prompt more power in the build up
+    Borrow engies where opportunities for reclaim exist
+    Consider interactions with ACU (thinking in particular of Setons front spot, or Isis 2v2s)
+Map analysis
+    Generate useful zones for making unit control decisions
+    Identify important land / naval components (mass points / reclaim, or the possibility to bombard mass points / bases)
+        Make this dynamic, will change based on opponents actions / investments in bases
+    Identify chokepoints
+    Identify movement blocking features on the map, even where they don't separate components
+    Identify features blocking low firing arcs
+        May be fun to try to exploit these
+    Provide method for checking required arc to fire between two points
+Expansion Manager
+    Manage expansion across larger distances, and the setup of remote bases (based on map features)
+    Select good locations for new bases / production capacity
+        Do this dynamically based on enemy disposition
+        Attempt to avoid detection where relevant
+        Pay close attention to component changes
+    Suppress excess base building on simple maps
+    Manage transports - construction and usage
+    Reserve engineers for transportation where relevant
+    Remove expansions as they are destroyed
+Brain / Coordination
+    AI specific stuff, not part of framework
+    Bias unit composition decisions
+    Make production balance decisions, i.e. eco vs land vs air vs navy vs other
+    Make use of intel (duh)
+Build Order Manager
+    Generate prospective build orders based on unit stats (i.e. factory / pgen / mex costs)
+    Select build order based on map features (i.e. proximity of mass points, hydro points, type of map, etc)
+    Execute build order - manage associated jobs
