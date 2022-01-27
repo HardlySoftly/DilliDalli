@@ -1,16 +1,18 @@
 local GetMarkers = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMarkers
 local MAP = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMap()
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
 ZoneSet = Class({
     Init = function(self,zoneIndex)
         self.zones = {}
         self.edges = nil
+        self.distances = nil
         self.numZones = 0
         self.index = zoneIndex
     end,
 
     AddZone = function(self,zone)
-        -- The zone you're adding can have custom fields within reason - we're callign a table.deepcopy on it later.
+        -- The zone you're adding can have custom fields within reason - we're calling a table.deepcopy on it later.
         -- Only required field is pos, and don't include id, or edges.
         self.numZones = self.numZones + 1
         zone.id = self.numZones
@@ -31,6 +33,59 @@ ZoneSet = Class({
             table.insert(self:GetZone(edge.zones[1]).edges,{zone = self:GetZone(edge.zones[2]), border=edge.border, distance=edge.distance, midpoint=table.copy(edge.midpoint)})
             table.insert(self:GetZone(edge.zones[2]).edges,{zone = self:GetZone(edge.zones[1]), border=edge.border, distance=edge.distance, midpoint=table.copy(edge.midpoint)})
         end
+        self:InitDistances()
+    end,
+
+    InitDistances = function(self)
+        -- Fill out a zone distance matrix so that zone to zone distances can be easily fetched later.
+        if self.numZones > 1000 then
+            WARN("The total number of zones is getting kinda high ("..tostring(self.numZones).."), you may experience some performance impacts :(")
+        end
+        self.distances = {}
+        for i=1, self.numZones do
+            self.distances[i] = {}
+            for j=1, self.numZones do
+                if i == j then
+                    self.distances[i][j] = 0
+                else
+                    self.distances[i][j] = -1
+                end
+            end
+        end
+        local pq = CreatePriorityQueue()
+        -- Avoid duplicating work by requiring source ID < destination ID
+        for i=1, self.numZones do
+            for _, edge in self.zones[i].edges do
+                if self.zones[i].id < edge.zone.id then
+                    pq:Queue({source = self.zones[i].id, destination = edge.zone.id, priority = edge.distance})
+                end
+            end
+        end
+        -- Don't you just love priority queues?
+        while pq:Size() > 0 do
+            local item = pq:Dequeue()
+            if (self.distances[item.source][item.destination] < 0) or (item.priority < self.distances[item.source][item.destination]) then
+                self.distances[item.source][item.destination] = item.priority
+                self.distances[item.destination][item.source] = item.priority
+                for _, edge in self.zones[item.source].edges do
+                    if (edge.zone.id < item.destination) and (self.distances[edge.zone.id][item.destination] < 0) then
+                        pq:Queue({source = edge.zone.id, destination = item.destination, priority = item.priority + edge.distance})
+                    end
+                end
+                for _, edge in self.zones[item.destination].edges do
+                    if (item.source < edge.zone.id) and (self.distances[item.source][edge.zone.id] < 0) then
+                        pq:Queue({source = item.source, destination = edge.zone.id, priority = item.priority + edge.distance})
+                    end
+                end
+            end
+        end
+    end,
+
+    GetDistance = function(self,id0,id1)
+        -- Get the graph distance between two zones - i.e. travelling only along edges between two zones how close are they?
+        -- Pass in zone ids, get out the distance.  A distance of -1 implies you can't get between the two zones.
+        -- GetDistance(a,b) is always equal to GetDistance(b,a)
+        return self.distances[id0][id1]
     end,
 
     GetZone = function(self,id)
