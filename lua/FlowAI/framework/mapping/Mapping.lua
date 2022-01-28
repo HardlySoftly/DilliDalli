@@ -33,11 +33,18 @@ local MIN_GAP = 5
 local MAX_GRADIENT = 0.5
 -- Ship and submarine clearance seem to both be for the same depths...
 local SHIP_CLEARANCE = 1.5
-local SUB_CLEARANCE = 1.5
--- Ditch separate sub layer in favour of using naval layer for submarines too
-local NUM_LAYERS = 4
 
 local SQRT_2 = math.sqrt(2)
+
+-- Changes here are not recommended (for compatibility reasons)
+local LAYER_NONE = -1
+local LAYER_AIR = 0
+local LAYER_LAND = 1
+local LAYER_NAVY = 2
+local LAYER_HOVER = 3
+local LAYER_AMPH = 4
+
+local NUM_LAYERS = 4
 
 -- Land
 local function CheckLandConnectivity0(x,z,gap)
@@ -199,31 +206,6 @@ local function CheckAmphibiousConnectivity1(x,z,gap)
     end
     return true
 end
---[[ To not do: subs since the check is the same as for ships right now...
-local function CheckSubmarineConnectivity0(x,z,gap)
-    if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SUB_CLEARANCE then
-        return false
-    end
-    for d = 1, gap do
-        -- No need for gradient checks
-        if GetTerrainHeight(x+d-1,z) >= GetSurfaceHeight(x+d-1,z)-SUB_CLEARANCE then
-            return false
-        end
-    end
-    return true
-end
-local function CheckSubmarineConnectivity1(x,z,gap)
-    if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SUB_CLEARANCE then
-        return false
-    end
-    for d = 1, gap do
-        -- No need for gradient checks
-        if GetTerrainHeight(x,z+d-1) >= GetSurfaceHeight(x,z+d-1)-SUB_CLEARANCE then
-            return false
-        end
-    end
-    return true
-end]]
 
 GameMap = Class({
     InitMap = function(self)
@@ -257,8 +239,8 @@ GameMap = Class({
         self.gap = math.max(MIN_GAP,math.ceil(math.sqrt(area/TARGET_MARKERS)))
         self.markers = {}
         self.components = {}
-        self.componentNumbers = { 0, 0, 0, 0, 0 }
-        self.componentSizes = { {}, {}, {}, {}, {} }
+        self.componentNumbers = { 0, 0, 0, 0 }
+        self.componentSizes = { {}, {}, {}, {} }
         self.zones = {}
         self.xSize = math.floor((PLAYABLE_AREA[3]-PLAYABLE_AREA[1])/self.gap)
         self.zSize = math.floor((PLAYABLE_AREA[4]-PLAYABLE_AREA[2])/self.gap)
@@ -273,10 +255,9 @@ GameMap = Class({
                     { false, false, false, false, false, false, false, false }, -- Navy
                     { false, false, false, false, false, false, false, false }, -- Hover
                     { false, false, false, false, false, false, false, false }, -- Amphibious
-                    --{ false, false, false, false, false, false, false, false }  -- Submarine (use navy layer)
                 }
-                -- [Land, Navy, Hover, Amphibious, --Submarine]
-                self.components[i][j] = { 0, 0, 0, 0 } --, 0 }
+                -- [Land, Navy, Hover, Amphibious]
+                self.components[i][j] = { 0, 0, 0, 0 }
                 self.zones[i][j] = {}
             end
         end
@@ -298,95 +279,108 @@ GameMap = Class({
         local CHC1 = CheckHoverConnectivity1
         local CAC0 = CheckAmphibiousConnectivity0
         local CAC1 = CheckAmphibiousConnectivity1
+        -- Declare some variables now that we'll need later, save us creating lots of little local variables.
+        local x = 0
+        local z = 0
+        local _mi = nil
+        local _mi1 = nil
+        local _mij = nil
+        local _mi1j = nil
+        local _mij1 = nil
+        local _mi1j1 = nil
+        local land = false
+        local navy = false
+        local hover = false
+        local amph = false
         -- [(+1, 0), (-1, 0)]
         for i = 1, self.xSize-1 do
-            local x = x0 - gap + i*gap
-            local _mi = markers[i]
-            local _mi1 = markers[i+1]
+            x = x0 - gap + i*gap
+            _mi = markers[i]
+            _mi1 = markers[i+1]
             for j = 1, self.zSize do
-                local _mij = _mi[j]
-                local _mi1j = _mi1[j]
-                local z = z0 - gap + j*gap
-                local land = CLC0(x,z,gap)
-                local navy = CNC0(x,z,gap)
-                local hover = CHC0(x,z,gap)
-                local amph = CAC0(x,z,gap)
-                _mij[1][1] = land
-                _mi1j[1][5] = land
-                _mij[2][1] = navy
-                _mi1j[2][5] = navy
-                _mij[3][1] = hover
-                _mi1j[3][5] = hover
-                _mij[4][1] = amph
-                _mi1j[4][5] = amph
+                _mij = _mi[j]
+                _mi1j = _mi1[j]
+                z = z0 - gap + j*gap
+                land = CLC0(x,z,gap)
+                navy = CNC0(x,z,gap)
+                hover = CHC0(x,z,gap)
+                amph = CAC0(x,z,gap)
+                _mij[LAYER_LAND][1] = land
+                _mi1j[LAYER_LAND][5] = land
+                _mij[LAYER_NAVY][1] = navy
+                _mi1j[LAYER_NAVY][5] = navy
+                _mij[LAYER_HOVER][1] = hover
+                _mi1j[LAYER_HOVER][5] = hover
+                _mij[LAYER_AMPH][1] = amph
+                _mi1j[LAYER_AMPH][5] = amph
             end
         end
         -- [(0, +1), (0,-1)]
         for i = 1, self.xSize do
-            local x = x0 - gap + i*gap
-            local _mi = markers[i]
+            x = x0 - gap + i*gap
+            _mi = markers[i]
             for j = 1, self.zSize-1 do
-                local _mij = _mi[j]
-                local _mij1 = _mi[j+1]
-                local z = z0 - gap + j*gap
-                local land = CLC1(x,z,gap)
-                local navy = CNC1(x,z,gap)
-                local hover = CHC1(x,z,gap)
-                local amph = CAC1(x,z,gap)
-                _mij[1][3] = land
-                _mij1[1][7] = land
-                _mij[2][3] = navy
-                _mij1[2][7] = navy
-                _mij[3][3] = hover
-                _mij1[3][7] = hover
-                _mij[4][3] = amph
-                _mij1[4][7] = amph
+                _mij = _mi[j]
+                _mij1 = _mi[j+1]
+                z = z0 - gap + j*gap
+                land = CLC1(x,z,gap)
+                navy = CNC1(x,z,gap)
+                hover = CHC1(x,z,gap)
+                amph = CAC1(x,z,gap)
+                _mij[LAYER_LAND][3] = land
+                _mij1[LAYER_LAND][7] = land
+                _mij[LAYER_NAVY][3] = navy
+                _mij1[LAYER_NAVY][7] = navy
+                _mij[LAYER_HOVER][3] = hover
+                _mij1[LAYER_HOVER][7] = hover
+                _mij[LAYER_AMPH][3] = amph
+                _mij1[LAYER_AMPH][7] = amph
             end
         end
         -- [(+1, -1), (-1, +1)]
         for i = 1, self.xSize-1 do
-            local _mi = markers[i]
-            local _mi1 = markers[i+1]
+            _mi = markers[i]
+            _mi1 = markers[i+1]
             for j = 2, self.zSize do
-                local _mij = _mi[j]
-                local _mi1j = _mi1[j]
-                local _mij1 = _mi[j-1]
-                local _mi1j1 = _mi1[j-1]
-                local land = _mij[1][1] and _mij[1][7] and _mi1j[1][7] and _mij1[1][1]
-                local navy = _mij[2][1] and _mij[2][7] and _mi1j[2][7] and _mij1[2][1]
-                local hover = _mij[3][1] and _mij[3][7] and _mi1j[3][7] and _mij1[3][1]
-                local amph = _mij[4][1] and _mij[4][7] and _mi1j[4][7] and _mij1[4][1]
-                _mij[1][8] = land
-                _mi1j1[1][4] = land
-                _mij[2][8] = navy
-                _mi1j1[2][4] = navy
-                _mij[3][8] = hover
-                _mi1j1[3][4] = hover
-                _mij[4][8] = amph
-                _mi1j1[4][4] = amph
+                _mij = _mi[j]
+                _mi1j = _mi1[j]
+                _mij1 = _mi[j-1]
+                _mi1j1 = _mi1[j-1]
+                land = _mij[LAYER_LAND][1] and _mij[LAYER_LAND][7] and _mi1j[LAYER_LAND][7] and _mij1[LAYER_LAND][1]
+                navy = _mij[LAYER_NAVY][1] and _mij[LAYER_NAVY][7] and _mi1j[LAYER_NAVY][7] and _mij1[LAYER_NAVY][1]
+                hover = _mij[LAYER_HOVER][1] and _mij[LAYER_HOVER][7] and _mi1j[LAYER_HOVER][7] and _mij1[LAYER_HOVER][1]
+                amph = _mij[LAYER_AMPH][1] and _mij[LAYER_AMPH][7] and _mi1j[LAYER_AMPH][7] and _mij1[LAYER_AMPH][1]
+                _mij[LAYER_LAND][8] = land
+                _mi1j1[LAYER_LAND][4] = land
+                _mij[LAYER_NAVY][8] = navy
+                _mi1j1[LAYER_NAVY][4] = navy
+                _mij[LAYER_HOVER][8] = hover
+                _mi1j1[LAYER_HOVER][4] = hover
+                _mij[LAYER_AMPH][8] = amph
+                _mi1j1[LAYER_AMPH][4] = amph
             end
         end
         -- [(+1, +1), (-1, -1)]
         for i = 1, self.xSize-1 do
-            local _mi = markers[i]
-            local _mi1 = markers[i+1]
+            _mi = markers[i]
+            _mi1 = markers[i+1]
             for j = 1, self.zSize-1 do
-                local _mij = _mi[j]
-                local _mi1j = _mi1[j]
-                local _mij1 = _mi[j+1]
-                local _mi1j1 = _mi1[j+1]
-                local land = _mij[1][1] and _mij[1][3] and _mi1j[1][3] and _mij1[1][1]
-                local navy = _mij[2][1] and _mij[2][3] and _mi1j[2][3] and _mij1[2][1]
-                local hover = _mij[3][1] and _mij[3][3] and _mi1j[3][3] and _mij1[3][1]
-                local amph = _mij[4][1] and _mij[4][3] and _mi1j[4][3] and _mij1[4][1]
-                _mij[1][2] = land
-                _mi1j1[1][6] = land
-                _mij[2][2] = navy
-                _mi1j1[2][6] = navy
-                _mij[3][2] = hover
-                _mi1j1[3][6] = hover
-                _mij[4][2] = amph
-                _mi1j1[4][6] = amph
+                _mij = _mi[j]
+                _mi1j = _mi1[j]
+                _mij1 = _mi[j+1]
+                _mi1j1 = _mi1[j+1]
+                land = _mij[LAYER_LAND][1] and _mij[LAYER_LAND][3] and _mi1j[LAYER_LAND][3] and _mij1[LAYER_LAND][1]
+                navy = _mij[LAYER_NAVY][1] and _mij[LAYER_NAVY][3] and _mi1j[LAYER_NAVY][3] and _mij1[LAYER_NAVY][1]
+                hover = _mij[LAYER_HOVER][1] and _mij[LAYER_HOVER][3] and _mi1j[LAYER_HOVER][3] and _mij1[LAYER_HOVER][1]
+                amph = _mij[LAYER_AMPH][1] and _mij[LAYER_AMPH][3] and _mi1j[LAYER_AMPH][3] and _mij1[LAYER_AMPH][1]
+                _mij[LAYER_LAND][2] = land
+                _mi1j1[LAYER_LAND][6] = land
+                _mij[LAYER_NAVY][2] = navy
+                _mi1j1[LAYER_NAVY][6] = navy
+                _mij[LAYER_HOVER][2] = hover
+                _mi1j1[LAYER_HOVER][6] = hover
+                _mij[LAYER_AMPH][2] = amph
+                _mi1j1[LAYER_AMPH][6] = amph
             end
         end
     end,
@@ -422,13 +416,16 @@ GameMap = Class({
     GenerateComponent = function(self,i0,j0,k,componentNumber)
         local work = {{i0,j0}}
         local workLen = 1
+        local i = 0
+        local j = 0
+        local _mij = nil
         self.components[i0][j0][k] = componentNumber
         self.componentSizes[k][componentNumber] = self.componentSizes[k][componentNumber] + 1
         while workLen > 0 do
-            local i = work[workLen][1]
-            local j = work[workLen][2]
+            i = work[workLen][1]
+            j = work[workLen][2]
             workLen = workLen-1
-            local _mij = self.markers[i][j][k]
+            _mij = self.markers[i][j][k]
             -- Since diagonal connections are purely derived from square connections, I won't bother with them for component generation
             if _mij[1] and (self.components[i+1][j][k] < 0) then
                 workLen = workLen+1
@@ -464,10 +461,10 @@ GameMap = Class({
         return (self.components[i0][j0][layer] > 0) and (self.components[i0][j0][layer] == self.components[i1][j1][layer])
     end,
     UnitCanPathTo = function(self,unit,pos)
-        local layer = self:GetMovementLayerBlueprint(unit:GetBlueprint())
-        if layer == -1 then
+        local layer = self:TranslateMovementLayer(unit:GetBlueprint().Physics.MotionType)
+        if layer == LAYER_NONE then
             return false
-        elseif layer == 0 then
+        elseif layer == LAYER_AIR then
             return true
         else
             local unitPos = unit:GetPosition()
@@ -475,29 +472,55 @@ GameMap = Class({
         end
     end,
     GetMovementLayer = function(self,unit)
-        return self:GetMovementLayerBlueprint(unit:GetBlueprint())
+        return self:TranslateMovementLayer(unit:GetBlueprint().Physics.MotionType)
     end,
-    GetMovementLayerBlueprint = function(self,bp)
+    TranslateMovementLayer = function(self,motionType)
         -- -1 => cannot move, 0 => air unit, otherwise chooses best matching layer index
-        local motionType = bp.Physics.MotionType
         if (not motionType) or motionType == "RULEUMT_None" then
-            return -1
+            return LAYER_NONE
         elseif motionType == "RULEUMT_Air" then
-            return 0
+            return LAYER_AIR
         elseif motionType == "RULEUMT_Land" then
-            return 1
+            return LAYER_LAND
         elseif motionType == "RULEUMT_Water" then
-            return 2
+            return LAYER_NAVY
         elseif (motionType == "RULEUMT_Hover") or (motionType == "RULEUMT_AmphibiousFloating") then
-            return 3
-        elseif "RULEUMT_Amphibious" then
-            return 4
+            return LAYER_HOVER
+        elseif motionType == "RULEUMT_Amphibious" then
+            return LAYER_AMPH
         elseif motionType == "RULEUMT_SurfacingSub" then
             -- Use navy layer since required required water clearance is the same
-            return 2
+            return LAYER_NAVY
         else
-            WARN("Unknown layer type found in map:GetMovementLayer - "..tostring(motionType))
-            return -1
+            WARN("Unknown layer type found in map:TranslateMovementLayer - "..tostring(motionType))
+            return LAYER_NONE
+        end
+    end,
+    GetMostRestrictiveMovementLayer = function(self, layer0, layer1)
+        local minLayer = math.min(layer0, layer1)
+        layer1 = math.max(layer0, layer1)
+        if minLayer == LAYER_NONE then
+            -- Something cannot move, so return that it cannot move
+            return LAYER_NONE
+        elseif minLayer == LAYER_AIR then
+            -- Something is an air unit, so return the other movement layer
+            return layer1
+        elseif minLayer == LAYER_LAND then
+            if layer1 == LAYER_NAVY then
+                -- Land unit and naval unit, cannot move together
+                return LAYER_NONE
+            else
+                -- Land unit and one of {land, hover, amphibous}, return land
+                return LAYER_LAND
+            end
+        elseif minLayer == LAYER_NAVY then
+            -- Combination of navy and one of {hover, amphibious}, return navy
+            -- NOTE: POTENTIAL BUG HERE - amphibious + navy is being treated as navy, but amphibious units (seafloor units) might not be able to go to all navy areas due to terrain.
+            -- Doesn't make sense to solve this by having a separate amphibious + water layer, nor does it make sense to return LAYER_NONE.
+            return LAYER_NAVY
+        else
+            -- layers are both from {hover, amph}, return the larger
+            return layer1
         end
     end,
     GetComponent = function(self,pos,layer)

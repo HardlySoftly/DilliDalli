@@ -116,7 +116,7 @@ function LoadProductionGraph()
             end
         elseif PRODUCTION_GRAPH[k].mobile then
             -- If it is mobile, extract movement layer information.
-            PRODUCTION_GRAPH[k].layer = MAP:GetMovementLayerBlueprint(bp)
+            PRODUCTION_GRAPH[k].layer = MAP:TranslateMovementLayer(bp.Physics.MotionType)
         else
             -- Seems fine, mostly campaign OP structures (e.g. black sun) or stuff like ferry beacons.
             --WARN("Unit found that is neither a structure or mobile: "..tostring(k).." - "..tostring(bp.Description))
