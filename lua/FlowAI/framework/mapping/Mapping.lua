@@ -1,7 +1,9 @@
---local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
--- Preliminary marker and playing area stuff
+--[[
+    A table containing all the markers that are actually created.
+    This is different to the MASTERCHAIN variable for adaptive maps, which only selectively create certain markers.
+]]
 local MYOWNMARKERS = {}
 function CreateMarker(t,x,y,z,size)
     table.insert(MYOWNMARKERS,{type=t,position={x,y,z}})
@@ -10,6 +12,12 @@ function GetMarkers()
     return MYOWNMARKERS
 end
 
+--[[
+    Similar to the marker table above, the map scenario info doesn't always reflect the actual playing area.
+    This code tracks the actual map size as requested by the map script.
+    Note that changes to the map size are only supported before the mapping code is run - dynamic changes to map size are not supported (maybe in the future...).
+    This means no support for certain map scenarios (e.g. campaign style missions), and the claustrophobia mod.
+]]
 local DEFAULT_BORDER = 4
 local PLAYABLE_AREA = nil
 function SetPlayableArea(x0,z0,x1,z1)
@@ -21,6 +29,7 @@ function GetPlayableArea()
 end
 
 --[[
+    Quick note on the remainder of the file:
     This code is largely written with performance in mind over readability.
     The justification in this case is that it represents a significant amount of work, and necessarily runs before the game starts.
     Every second here is a second the players are waiting to play.
@@ -28,15 +37,39 @@ end
     Sorry for the inlining of functions, the repetitive code blocks, and the constant localling of variables :)
   ]]
 
+--[[
+    TARGET_MARKERS and MIN_GAP between them control the overall precision of the map - namely how far apart should map nodes be.
+    For more details on this see GameMap:CreateMapMarkers()
+]]
 local TARGET_MARKERS = 120000
 local MIN_GAP = 5
+
+--[[
+    This variable controls the tolerance when determining if terrain is pathable or not.  Terrain above MAX_GRADIENT steepness is considered impassable.
+    Note that in this implementation of the mapping code, this isn't an exact science, so some tuning of this parameter was necessary to achieve a good tradeoff.
+]]
 local MAX_GRADIENT = 0.5
--- Ship and submarine clearance seem to both be for the same depths...
+
+--[[
+    The underwater clearance that ships and submersibles require to move (it is the same for both).
+    See footprints.lua in mohodata.scd for the definition of this - I decided it was fine to hardcode in the end (would be _very_ niche to mod this value).
+]]
 local SHIP_CLEARANCE = 1.5
 
+-- I use this constant a lot for diagonal distance calculations, so wanted to cache it.
 local SQRT_2 = math.sqrt(2)
 
--- Changes here are not recommended (for compatibility reasons)
+--[[
+    Constants used for layer indices in the GameMap class.
+    Wherever a 'layer' variable is used in the GameMap class, it will take one of these values (with the associated implied meaning).
+    LAYER_NONE and LAYER_AIR are treated as special values in the GameMap class, and cannot be used as the layer index directly.
+    i.e. MAP.markers[i][j][layer] isn't a valid thing to do for LAYER_NONE and LAYER_AIR.
+
+    Changes here are not recommended for compatibility reasons, it would break:
+        - external code that hardcodes layer values,
+        - the GameMap:GetMostRestrictiveMovementLayer function.
+    At some point in the future I may allow for exporting of these values in a sensible way (some kind of table?) so that they don't end up being hardcoded everywhere.
+]]
 local LAYER_NONE = -1
 local LAYER_AIR = 0
 local LAYER_LAND = 1
@@ -44,168 +77,196 @@ local LAYER_NAVY = 2
 local LAYER_HOVER = 3
 local LAYER_AMPH = 4
 
+-- The max layer index - used for 'for' loops that iterate over each layer.
 local NUM_LAYERS = 4
 
--- Land
-local function CheckLandConnectivity0(x,z,gap)
-    local gMax = MAX_GRADIENT
-    if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
-        return false
-    end
-    for d = 1, gap do
-        local g = (GetTerrainHeight(x+d-1,z) - GetTerrainHeight(x+d,z))
-        if -gMax > g or g > gMax then
+--[[
+    A table containing all the functions for checking connectivity between two map nodes.
+        - Note: it's a table so that I can collapse it more easily in my editor, and it just feels a bit cleaner than them all being their own locals.
+    The X direction and Z direction checks are feature almost identical code and could be easily merged, but I wanted to avoid the performance impact of checking direction every call.
+    These get called a *lot* - once for every node on the map, meaning up to around TARGET_MARKERS*8 calls between them.  Performance is king here.
+
+    What do I mean by checking connectivity?
+    These functions answer the question 'For the given layer, can you move between (x,z) and (x+gap,z) (or (x,z+gap) for the Z direction version) in a straight line?'.
+
+    How do they work (for land/hover/amphib layers)?
+    Firstly, the function will split the straight line between the start and end point into unit intervals (i.e. segments of length 1).
+    The function will then check the Y values at the start and end of each segment, and compare the gradient to the MAX_GRADIENT value.
+    If any of the segments exceed this value, it will return false.
+    As it checks each segment in a straight line, it will also check unit length segments perpendicular to the line, and compare the gradient of these to MAX_GRADIENT too.
+    This second check catches the case where the line is going along a cliff at a shallow angle, thereby appearing to be passable when it is actually very steep.
+    If all these checks pass, then the function return true.
+
+    There's also a couple of small differences in the way each layer is handled:
+        - If any segment is below water level, then the land check fails.
+        - The hover checks use GetSurfaceHeight (which returns water height where relevant).
+        - The amphib checks use GetTerrainHeight.
+
+    How does the naval one work?
+    Since water is flat, the only check that needs doing is whether or not the water depth exceeds SHIP_CLEARANCE at each segment.
+]]
+local ConnectivityCheckingFunctions = {
+    -- Land
+    LandXDirection = function(x,z,gap)
+        local gMax = MAX_GRADIENT
+        if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
             return false
         end
-        if GetTerrainHeight(x+d-1,z) < GetSurfaceHeight(x+d-1,z) then
+        for d = 1, gap do
+            local g = (GetTerrainHeight(x+d-1,z) - GetTerrainHeight(x+d,z))
+            if -gMax > g or g > gMax then
+                return false
+            end
+            if GetTerrainHeight(x+d-1,z) < GetSurfaceHeight(x+d-1,z) then
+                return false
+            end
+        end
+        for d = 1, gap-1 do
+            local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z+1))
+            if -gMax > g or g > gMax then
+                return false
+            end
+            local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z-1))
+            if -gMax > g or g > gMax then
+                return false
+            end
+        end
+        return true
+    end,
+    LandZDirection = function(x,z,gap)
+        local gMax = MAX_GRADIENT
+        if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
             return false
         end
-    end
-    for d = 1, gap-1 do
-        local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z+1))
-        if -gMax > g or g > gMax then
+        for d = 1, gap do
+            local g = (GetTerrainHeight(x,z+d-1) - GetTerrainHeight(x,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
+            if GetTerrainHeight(x,z+d-1) < GetSurfaceHeight(x,z+d-1) then
+                return false
+            end
+        end
+        for d = 1, gap-1 do
+            local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x+1,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
+            local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x-1,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
+        end
+        return true
+    end,
+    -- Naval / water surface
+    NavalXDirection = function(x,z,gap)
+        if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SHIP_CLEARANCE then
             return false
         end
-        local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z-1))
-        if -gMax > g or g > gMax then
+        for d = 1, gap do
+            -- No need for gradient checks
+            if GetTerrainHeight(x+d,z) >= GetSurfaceHeight(x+d,z)-SHIP_CLEARANCE then
+                return false
+            end
+        end
+        return true
+    end,
+    NavalZDirection = function(x,z,gap)
+        if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SHIP_CLEARANCE then
             return false
         end
-    end
-    return true
-end
-local function CheckLandConnectivity1(x,z,gap)
-    local gMax = MAX_GRADIENT
-    if GetTerrainHeight(x,z) < GetSurfaceHeight(x,z) then
-        return false
-    end
-    for d = 1, gap do
-        local g = (GetTerrainHeight(x,z+d-1) - GetTerrainHeight(x,z+d))
-        if -gMax > g or g > gMax then
-            return false
+        for d = 1, gap do
+            -- No need for gradient checks
+            if GetTerrainHeight(x,z+d-1) >= GetSurfaceHeight(x,z+d-1)-SHIP_CLEARANCE then
+                return false
+            end
         end
-        if GetTerrainHeight(x,z+d-1) < GetSurfaceHeight(x,z+d-1) then
-            return false
+        return true
+    end,
+    -- Hover
+    HoverXDirection = function(x,z,gap)
+        local gMax = MAX_GRADIENT
+        for d = 1, gap do
+            local g = (GetSurfaceHeight(x+d-1,z) - GetSurfaceHeight(x+d,z))
+            if -gMax > g or g > gMax then
+                return false
+            end
         end
-    end
-    for d = 1, gap-1 do
-        local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x+1,z+d))
-        if -gMax > g or g > gMax then
-            return false
+        for d = 1, gap-1 do
+            local g = (GetSurfaceHeight(x+d,z) - GetSurfaceHeight(x+d,z+1))
+            if -gMax > g or g > gMax then
+                return false
+            end
+            local g = (GetSurfaceHeight(x+d,z) - GetSurfaceHeight(x+d,z-1))
+            if -gMax > g or g > gMax then
+                return false
+            end
         end
-        local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x-1,z+d))
-        if -gMax > g or g > gMax then
-            return false
+        return true
+    end,
+    HoverZDirection = function(x,z,gap)
+        local gMax = MAX_GRADIENT
+        for d = 1, gap do
+            local g = (GetSurfaceHeight(x,z+d-1) - GetSurfaceHeight(x,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
         end
-    end
-    return true
-end
--- Naval / water surface
-local function CheckNavalConnectivity0(x,z,gap)
-    if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SHIP_CLEARANCE then
-        return false
-    end
-    for d = 1, gap do
-        -- No need for gradient checks
-        if GetTerrainHeight(x+d-1,z) >= GetSurfaceHeight(x+d-1,z)-SHIP_CLEARANCE then
-            return false
+        for d = 1, gap-1 do
+            local g = (GetSurfaceHeight(x,z+d) - GetSurfaceHeight(x+1,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
+            local g = (GetSurfaceHeight(x,z+d) - GetSurfaceHeight(x-1,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
         end
-    end
-    return true
-end
-local function CheckNavalConnectivity1(x,z,gap)
-    if GetTerrainHeight(x,z) >= GetSurfaceHeight(x,z)-SHIP_CLEARANCE then
-        return false
-    end
-    for d = 1, gap do
-        -- No need for gradient checks
-        if GetTerrainHeight(x,z+d-1) >= GetSurfaceHeight(x,z+d-1)-SHIP_CLEARANCE then
-            return false
+        return true
+    end,
+    -- Amphibious
+    AmphibiousXDirection = function(x,z,gap)
+        local gMax = MAX_GRADIENT
+        for d = 1, gap do
+            local g = (GetTerrainHeight(x+d-1,z) - GetTerrainHeight(x+d,z))
+            if -gMax > g or g > gMax then
+                return false
+            end
         end
-    end
-    return true
-end
--- Hover
-local function CheckHoverConnectivity0(x,z,gap)
-    local gMax = MAX_GRADIENT
-    for d = 1, gap do
-        local g = (GetSurfaceHeight(x+d-1,z) - GetSurfaceHeight(x+d,z))
-        if -gMax > g or g > gMax then
-            return false
+        for d = 1, gap-1 do
+            local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z+1))
+            if -gMax > g or g > gMax then
+                return false
+            end
+            local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z-1))
+            if -gMax > g or g > gMax then
+                return false
+            end
         end
-    end
-    for d = 1, gap-1 do
-        local g = (GetSurfaceHeight(x+d,z) - GetSurfaceHeight(x+d,z+1))
-        if -gMax > g or g > gMax then
-            return false
+        return true
+    end,
+    AmphibiousZDirection = function(x,z,gap)
+        local gMax = MAX_GRADIENT
+        for d = 1, gap do
+            local g = (GetTerrainHeight(x,z+d-1) - GetTerrainHeight(x,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
         end
-        local g = (GetSurfaceHeight(x+d,z) - GetSurfaceHeight(x+d,z-1))
-        if -gMax > g or g > gMax then
-            return false
+        for d = 1, gap-1 do
+            local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x+1,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
+            local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x-1,z+d))
+            if -gMax > g or g > gMax then
+                return false
+            end
         end
-    end
-    return true
-end
-local function CheckHoverConnectivity1(x,z,gap)
-    local gMax = MAX_GRADIENT
-    for d = 1, gap do
-        local g = (GetSurfaceHeight(x,z+d-1) - GetSurfaceHeight(x,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-    end
-    for d = 1, gap-1 do
-        local g = (GetSurfaceHeight(x,z+d) - GetSurfaceHeight(x+1,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        local g = (GetSurfaceHeight(x,z+d) - GetSurfaceHeight(x-1,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-    end
-    return true
-end
--- Amphibious
-local function CheckAmphibiousConnectivity0(x,z,gap)
-    local gMax = MAX_GRADIENT
-    for d = 1, gap do
-        local g = (GetTerrainHeight(x+d-1,z) - GetTerrainHeight(x+d,z))
-        if -gMax > g or g > gMax then
-            return false
-        end
-    end
-    for d = 1, gap-1 do
-        local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z+1))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        local g = (GetTerrainHeight(x+d,z) - GetTerrainHeight(x+d,z-1))
-        if -gMax > g or g > gMax then
-            return false
-        end
-    end
-    return true
-end
-local function CheckAmphibiousConnectivity1(x,z,gap)
-    local gMax = MAX_GRADIENT
-    for d = 1, gap do
-        local g = (GetTerrainHeight(x,z+d-1) - GetTerrainHeight(x,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-    end
-    for d = 1, gap-1 do
-        local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x+1,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-        local g = (GetTerrainHeight(x,z+d) - GetTerrainHeight(x-1,z+d))
-        if -gMax > g or g > gMax then
-            return false
-        end
-    end
-    return true
-end
+        return true
+    end,
+}
 
 GameMap = Class({
     InitMap = function(self)
@@ -271,14 +332,14 @@ GameMap = Class({
         local gap = self.gap
         local x0 = PLAYABLE_AREA[1]
         local z0 = PLAYABLE_AREA[2]
-        local CLC0 = CheckLandConnectivity0
-        local CLC1 = CheckLandConnectivity1
-        local CNC0 = CheckNavalConnectivity0
-        local CNC1 = CheckNavalConnectivity1
-        local CHC0 = CheckHoverConnectivity0
-        local CHC1 = CheckHoverConnectivity1
-        local CAC0 = CheckAmphibiousConnectivity0
-        local CAC1 = CheckAmphibiousConnectivity1
+        local CLC0 = ConnectivityCheckingFunctions.LandXDirection
+        local CLC1 = ConnectivityCheckingFunctions.LandZDirection
+        local CNC0 = ConnectivityCheckingFunctions.NavalXDirection
+        local CNC1 = ConnectivityCheckingFunctions.NavalZDirection
+        local CHC0 = ConnectivityCheckingFunctions.HoverXDirection
+        local CHC1 = ConnectivityCheckingFunctions.HoverZDirection
+        local CAC0 = ConnectivityCheckingFunctions.AmphibiousXDirection
+        local CAC1 = ConnectivityCheckingFunctions.AmphibiousZDirection
         -- Declare some variables now that we'll need later, save us creating lots of little local variables.
         local x = 0
         local z = 0
