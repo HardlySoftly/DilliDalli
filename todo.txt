@@ -1,5 +1,4 @@
 Adjacency management
-    Identify structures that may be involved in adjacency requirements
     On construction start, register possible adjacent locations (checking for buildable locations)
     Periodically revisit these locations in case of change? (or check on attempting access?)
     Identify overlapping other buildings and flag for possible reclamation
@@ -8,12 +7,14 @@ Adjacency management
     Periodically search all units to add new locations as relevant
 Mass Manager
     Identify all options for increasing mass income, and calculate benefits
+    Identify structures that may be involved in adjacency requirements
     Given delegated resources and current tech level / units, select best option for increasing mass
     Manage/Create associated jobs
     Prompt construction of relevant defences
     Provide interface for requesting reclamation of associated units for unit cap reasons
 Energy Manager
     Identify all options for increasing energy income, and calculate benefits
+    Identify structures that may be involved in adjacency requirements
     Given delegated resources and current tech level / units, select best option for increasing energy
     Manage/Create associated jobs
     Prompt construction of relevant defences
