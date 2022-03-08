@@ -28,12 +28,12 @@ local function GetMassPriority(template, marginalEnergyCost, safety)
             production / (cost + maintenance * marginalEnergyCost)
 
         This is an improvement, but it still misses something, namely that the enemy will try to blow your buildings up.  Mass points further away
-        from your base are more vulnerable, and intuitively we know this means we should upgrade them later than safer mass extractors.  the key
+        from your base are more vulnerable, and intuitively we know this means we should upgrade them later than safer mass extractors.  The key
         thing we're estimating as humans can be summed up with the 'saftey' parameter - which gives an estimate of how long until a thing is lost.
 
         For simplicity, we assume that the probability of losing the 'thing' we build is constant (which we don't actually know, but estimating the
         chance of losing something to a greater degree of precision is excessively hard), and so the chance of losing it on any given second is:
-            probabilityOfDestructionPerSecond = 0.5 ^ (1/safety)
+            probabilityOfDestructionPerSecond = math.pow(0.5,1/safety)
 
         How do we use that to influence our priority?  Well, if a 'thing' is lost, then the natural action to take is to rebuild it.  We calculated
         the 'actualCost' earlier, and so we can use that to generate a per second estimate of the resources spent rebuilding the 'thing':
@@ -48,15 +48,14 @@ local function GetMassPriority(template, marginalEnergyCost, safety)
                      = (production - perSecondRebuildCost) / actualCost
                      = (production - probabilityOfDestructionPerSecond * actualCost) / actualCost
                      = (production / actualCost) - probabilityOfDestructionPerSecond
-                     = (production / (cost + maintenance * marginalEnergyCost)) - (1 - 0.5 ^ (1 / safety))
-                     = production / (cost + maintenance * marginalEnergyCost) - 1 + 0.5 ^ (1 / safety)
+                     = (production / (cost + maintenance * marginalEnergyCost)) - (1 - math.pow(0.5,1/safety))
+                     = production / (cost + maintenance * marginalEnergyCost) - 1 + math.pow(0.5,1/safety)
     ]]
-    return template.production / (template.cost + template.maintenance * marginalEnergyCost) - 1 + 0.5 ^ (1 / safety)
+    return template.production / (template.cost + template.maintenance * marginalEnergyCost) - 1 + math.pow(0.5, 1 / safety)
 end
 
 local function GetEnergyPriority(template, safety)
     -- Formula for calculating the relative priority of building some mass producing thing.
     -- See mass version for explanation; energy case is simpler since there isn't any maintenance required to run pgens.
-    return template.production / template.cost - 1 + 0.5 ^ (1 / safety)
+    return template.production / template.cost - 1 + math.pow(0.5, 1 / safety)
 end
-
