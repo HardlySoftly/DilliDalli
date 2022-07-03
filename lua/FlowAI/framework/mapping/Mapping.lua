@@ -586,7 +586,7 @@ GameMap = Class({
             return LAYER_NONE
         elseif motionType == "RULEUMT_Air" then
             return LAYER_AIR
-        elseif motionType == "RULEUMT_Land" then
+        elseif (motionType == "RULEUMT_Land") or (motionType == "RULEUMT_Biped") then
             return LAYER_LAND
         elseif motionType == "RULEUMT_Water" then
             return LAYER_NAVY
@@ -835,6 +835,9 @@ GameMap = Class({
         for i=1,self.xSize do
             local x = x0 + i*gap
             for j=1,self.zSize do
+                if self.componentSizes[layer][self.components[i][j][layer]] < 50 then
+                    continue
+                end
                 local z = z0 + j*gap
                 for k=1,8 do
                     if self.markers[i][j][layer][k] then
