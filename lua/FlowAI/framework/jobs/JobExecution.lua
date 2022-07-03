@@ -14,7 +14,7 @@ local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lu
 local CheckForEnemyStructure = import('/mods/DilliDalli/lua/FlowAI/framework/Intel.lua').CheckForEnemyStructure
 
 JobExecutor = Class({
-    Init = function(self,builder,job,brain)
+    Init = function(self,brain,builder,blueprintID,job)
         self.brain = brain
         -- The job we're doing.  This class is responsible for some state maintenance here.
         self.job = job
@@ -28,12 +28,14 @@ JobExecutor = Class({
         self.reason = nil
         -- The thing we're building - while this is nil we assume the job is unstarted
         self.target = nil
-        self.toBuildID = job.specification.unitBlueprintID
+        self.toBuildID = blueprintID
         -- The builder to assist (if not the target)
         self.mainBuilder = builder
         self.builderRate = builder:GetBuildRate()
         -- Command Interface
         self.commandInterface = brain.commandInterface
+        self.mainBuilder.FlowAI.jobExecutor = self
+        self.mainBuilder.FlowAI.productionAssigned = true
         -- All engies excepting the main engie
         self.subsidiaryEngies = {}
         self.buildRates = {}
@@ -51,7 +53,9 @@ JobExecutor = Class({
         self.subsidiaryEngies[self.numEngies] = assister
         local buildRate = assister:GetBuildRate()
         self.buildRates[self.numEngies] = buildRate
-        assister.FlowAI.assistingExecutor = self
+        assister.FlowAI.jobExecutor = self
+        assister.FlowAI.assistingExecutor = true
+        assister.FlowAI.productionAssigned = true
         assister.FlowAI.executorIndex = self.numEngies
         self.numEngies = self.numEngies + 1
         self.job.data.totalBuildpower = self.job.data.totalBuildpower + buildRate
@@ -67,16 +71,28 @@ JobExecutor = Class({
                 if engie.FlowAI.productionAssigned and engie.FlowAI.assistingExecutor then engie.FlowAI.assistingExecutor:RemoveEngineer(engie) end
             to avoid issues.
         ]]
-        engie.FlowAI.assistingExecutor = nil
+        engie.FlowAI.assistingExecutor = false
+        engie.FlowAI.productionAssigned = false
+        engie.FlowAI.jobExecutor = nil
         self.subsidiaryEngies[engie.FlowAI.executorIndex] = nil
     end,
 
     GetEstimatedCompletionTime = function(self,includeBottlenecks)
         -- TODO
+        return 10
     end,
 
-    ReduceSpend = function(self,targetSpend)
-        -- TODO
+    ReduceSpend = function(self,targetReduction)
+        local i = 1
+        -- Convert mass target into a buildpower target for convenience
+        targetReduction = targetReduction / self.job.data.massSpendRate
+        while (targetReduction > 0) and (i < self.numEngies) do
+            targetReduction = targetReduction - self.buildRates[i]
+            self:RemoveEngineer(self.subsidiaryEngies[i])
+            i = i+1
+        end
+        -- Return how much of the reduction remains
+        return targetReduction * self.job.data.massSpendRate
     end,
 
     CompleteJob = function(self)
@@ -94,8 +110,16 @@ JobExecutor = Class({
             self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[i]
             i = i+1
         end
+        self:ClearDeadAssisters()
         if self.numEngies > 1 then
-            self.commandInterface:IssueStop(self.subsidiaryEngies)
+            -- Copy out of subsidiaryEngies since it may contain nil values
+            local engies = {}
+            i = 1
+            while i < self.numEngies do
+                engies[i] = self.subsidiaryEngies[i]
+                i = i+1
+            end
+            self.commandInterface:IssueStop(engies)
         end
     end,
 
@@ -180,7 +204,7 @@ MobileJobExecutor = Class(JobExecutor){
                 if self.numEngies > 1 then
                     self.numEngies = self.numEngies - 1
                     self.mainBuilder = self.subsidiaryEngies[self.numEngies]
-                    self.mainBuilder.FlowAI.assistingExecutor = nil
+                    self.mainBuilder.FlowAI.assistingExecutor = false
                     self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
                     self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[self.numEngies]
                     self.subsidiaryEngies[self.numEngies] = nil
