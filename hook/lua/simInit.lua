@@ -10,14 +10,14 @@ function BeginSession()
     DilliDalliLoadProductionGraph()
 end
 
-DilliDalliYeOldeCreateResourceDeposit = CreateResourceDeposit
+local DilliDalliYeOldeCreateResourceDeposit = CreateResourceDeposit
 local DilliDalliCreateMarker = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').CreateMarker
 CreateResourceDeposit = function(t,x,y,z,size)
     DilliDalliCreateMarker(t,x,y,z,size)
     DilliDalliYeOldeCreateResourceDeposit(t,x,y,z,size)
 end
 
-DilliDalliYeOldeSetPlayableRect = SetPlayableRect
+local DilliDalliYeOldeSetPlayableRect = SetPlayableRect
 local DilliDalliSetPlayableArea = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').SetPlayableArea
 SetPlayableRect = function(minx,minz,maxx,maxz)
     DilliDalliYeOldeSetPlayableRect(minx,minz,maxx,maxz)
