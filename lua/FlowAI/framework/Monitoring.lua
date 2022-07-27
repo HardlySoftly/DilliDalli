@@ -2,7 +2,7 @@ local WORK_RATE = 50
 
 local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 
-UnitList = class({
+UnitList = Class({
     Init = function(self)
         self.size = 0
         self.units = {}
@@ -39,12 +39,11 @@ UnitMonitoring = class({
 
     MonitoringThread = function(self)
         local workLimiter = CreateWorkLimiter(WORK_RATE,"UnitMonitoring:MonitoringThread")
-        while self.brain:IsAlive() do
-            workLimiter:Reset()
+        while self.brain:IsAlive() and workLimiter:Wait() do
             local allUnits = self.brain.aiBrain:GetListOfUnits(categories.ALL,false,true)
-            workLimiter:Reset()
+            workLimiter:Wait()
             for i, unit in allUnits do
-                workLimiter:Wait()
+                workLimiter:MaybeWait()
                 if unit and (not unit.Dead) and (not unit.FlowAI) then
                     unit.FlowAI = {}
                     local bpID = unit.UnitId

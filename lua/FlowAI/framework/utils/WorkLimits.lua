@@ -1,26 +1,37 @@
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
-WorkLimiter = class({
+WorkLimiter = Class({
     Init = function(self,workRate,profilingKey)
         self.n = workRate
         self.workRate = workRate
         self.profilingKey = profilingKey
         self.start = PROFILER:Now()
     end,
-    Reset = function(self)
+    Wait = function(self)
         self.n = self.workRate
         PROFILER:Add(self.profilingKey,PROFILER:Now()-start)
         WaitTicks(1)
         self.start = PROFILER:Now()
+        return true
     end,
-    Wait = function(self)
+    MaybeWait = function(self)
         self.n = self.n - 1
         if n == 0 then
             n = self.workRate
             PROFILER:Add(self.profilingKey,PROFILER:Now()-start)
             WaitTicks(1)
             self.start = PROFILER:Now()
+            return true
+        else
+            return false
         end
+    end,
+    WaitTicks = function(self,numTicks)
+        self.n = self.workRate
+        PROFILER:Add(self.profilingKey,PROFILER:Now()-start)
+        WaitTicks(numTicks)
+        self.start = PROFILER:Now()
+        return true
     end,
 })
 
