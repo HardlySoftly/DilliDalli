@@ -1,3 +1,7 @@
+--[[
+    In this file, we implement a helper class for doing easy limiting of work volumes, as well as adding in code profiling for free.
+]]
+
 local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
 
 WorkLimiter = Class({
@@ -33,10 +37,15 @@ WorkLimiter = Class({
         self.start = PROFILER:Now()
         return true
     end,
+    End = function(self)
+        PROFILER:Add(self.profilingKey,PROFILER:Now()-start)
+        self.start = PROFILER:Now()
+        return false
+    end,
 })
 
 function CreateWorkLimiter(workRate)
     wl = WorkLimiter()
-    wl:Init(workRate)
+    wl:Init(math.max(math.round(workRate),1))
     return wl
 end
