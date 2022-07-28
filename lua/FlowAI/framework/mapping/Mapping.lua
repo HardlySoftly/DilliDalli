@@ -521,40 +521,6 @@ GameMap = Class({
         local j1 = self:GetJ(pos1[3])
         return (self.components[i0][j0][layer] > 0) and (self.components[i0][j0][layer] == self.components[i1][j1][layer])
     end,
-    ToPathOrNotToPath = function(self,pos0,pos1,layer)
-        --[[
-            Like CanPathTo, but with a better name, and also handles certain cases better (drawback: slightly more expensive).
-            In particular, this function doesn't just check the closest grid point to each pos, but also around each pos in case it is near a pathing boundary.
-        ]]
-        local i0 = math.min(math.max(self:GetI(pos0[1]),2),self.xSize-1)
-        local j0 = math.min(math.max(self:GetJ(pos0[3]),2),self.zSize-1)
-        local i1 = math.min(math.max(self:GetI(pos0[1]),2),self.xSize-1)
-        local j1 = math.min(math.max(self:GetJ(pos0[3]),2),self.zSize-1)
-        local pos0Components = {
-            self.components[i0-1][j0+1][layer], self.components[i0][j0+1][layer], self.components[i0+1][j0+1][layer],
-            self.components[i0-1][j0][layer],   self.components[i0][j0][layer],   self.components[i0+1][j0][layer],
-            self.components[i0-1][j0-1][layer], self.components[i0][j0-1][layer], self.components[i0+1][j0-1][layer]
-        }
-        local pos1Components = {
-            self.components[i1-1][j1+1][layer], self.components[i1][j1+1][layer], self.components[i1+1][j1+1][layer],
-            self.components[i1-1][j1][layer],   self.components[i1][j1][layer],   self.components[i1+1][j1][layer],
-            self.components[i1-1][j1-1][layer], self.components[i1][j1-1][layer], self.components[i1+1][j1-1][layer]
-        }
-        for i = 1, 9 do
-            if pos0Components[i] < 0 then
-                continue
-            end
-            for j = 1, 9 do
-                if pos1Components[j] < 0 then
-                    continue
-                end
-                if pos0Components[i] == pos1Components[j] then
-                    return true
-                end
-            end
-        end
-        return false
-    end,
     UnitCanPathTo = function(self,unit,pos)
         local layer = self:TranslateMovementLayer(unit:GetBlueprint().Physics.MotionType)
         if layer == LAYER_NONE then
@@ -564,17 +530,6 @@ GameMap = Class({
         else
             local unitPos = unit:GetPosition()
             return self:CanPathTo(unitPos,pos,layer)
-        end
-    end,
-    HomieCanPathTo = function(self,unit,pos)
-        local layer = self:TranslateMovementLayer(unit:GetBlueprint().Physics.MotionType)
-        if layer == LAYER_NONE then
-            return false
-        elseif layer == LAYER_AIR then
-            return true
-        else
-            local unitPos = unit:GetPosition()
-            return self:ToPathOrNotToPath(unitPos,pos,layer)
         end
     end,
     GetMovementLayer = function(self,unit)
