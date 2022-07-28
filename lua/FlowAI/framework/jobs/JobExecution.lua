@@ -1,23 +1,17 @@
 --[[
-    Execution of individual jobs
-    TODOs:
-        Add support for enhancement jobs
-        Add diagnosis tooling
-        Provide ability to calculate ETAs
-        Support shifting of specific engies away from jobs
-        Pick new location for mobile jobs to reduce travel time
-        Reclaim enemy things in the way of a building
+    In this file, we implement JobExecutor classes to handle the in-game execution of WorkItems.
+    Job executors are responsible for running a job by issuing orders and maintaining some state (e.g. buildpower assigned).
+    They must handle the addition of new engineers, and provide best efforts to complete jobs despite destruction of assigned builders.
 ]]
 
-local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
-
 local CheckForEnemyStructure = import('/mods/DilliDalli/lua/FlowAI/framework/Intel.lua').CheckForEnemyStructure
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+
+local BUILDPOWER_MODIFIER = 0.5
 
 JobExecutor = Class({
-    Init = function(self,brain,builder,blueprintID,job)
+    Init = function(self,brain,builder,blueprintID)
         self.brain = brain
-        -- The job we're doing.  This class is responsible for some state maintenance here.
-        self.job = job
         -- Somwhere to dump old threads
         self.trash = brain.trash
         -- Some flags we'll need
@@ -34,92 +28,33 @@ JobExecutor = Class({
         self.builderRate = builder:GetBuildRate()
         -- Command Interface
         self.commandInterface = brain.commandInterface
-        self.mainBuilder.FlowAI.jobExecutor = self
-        self.mainBuilder.FlowAI.productionAssigned = true
         -- All engies excepting the main engie
         self.subsidiaryEngies = {}
         self.buildRates = {}
         self.numEngies = 1
 
-        -- Update job state here
-        self.job.data.totalBuildpower = self.job.data.totalBuildpower + self.builderRate
-        -- Actual spend is measured assuming 100% efficiency - i.e. we're not in a stall.
-        self.actualSpend = 0
-        -- Theoretical spend includes engies which aren't building right now, but should be at some point.
-        self.theoreticalSpend = 0
+        -- Assigned buildpower
+        self.buildpower = 0
+
+        -- Record job type
+        self.isMobile = false
+        self.isFactory = false
+        self.isUpgrade = false
     end,
 
     AddEngineer = function(self,assister)
         self.subsidiaryEngies[self.numEngies] = assister
         local buildRate = assister:GetBuildRate()
         self.buildRates[self.numEngies] = buildRate
-        assister.FlowAI.jobExecutor = self
-        assister.FlowAI.assistingExecutor = true
-        assister.FlowAI.productionAssigned = true
-        assister.FlowAI.executorIndex = self.numEngies
         self.numEngies = self.numEngies + 1
-        self.job.data.totalBuildpower = self.job.data.totalBuildpower + buildRate
-        self.job.data.assistBuildpower = self.job.data.assistBuildpower + buildRate
         -- If the engie is already doing something, stop.  Then we know to pick it up later and issue a new order.
         self.commandInterface:IssueStop({assister})
     end,
 
-    RemoveEngineer = function(self,engie)
-        --[[
-            This engineer must be assisting this job, and I won't check that for you.
-            Use something like:
-                if engie.FlowAI.productionAssigned and engie.FlowAI.assistingExecutor then engie.FlowAI.assistingExecutor:RemoveEngineer(engie) end
-            to avoid issues.
-        ]]
-        engie.FlowAI.assistingExecutor = false
-        engie.FlowAI.productionAssigned = false
-        engie.FlowAI.jobExecutor = nil
-        self.subsidiaryEngies[engie.FlowAI.executorIndex] = nil
-    end,
-
-    GetEstimatedCompletionTime = function(self,includeBottlenecks)
-        -- TODO
-        return 10
-    end,
-
-    ReduceSpend = function(self,targetReduction)
-        local i = 1
-        -- Convert mass target into a buildpower target for convenience
-        targetReduction = targetReduction / self.job.data.massSpendRate
-        while (targetReduction > 0) and (i < self.numEngies) do
-            targetReduction = targetReduction - self.buildRates[i]
-            self:RemoveEngineer(self.subsidiaryEngies[i])
-            i = i+1
-        end
-        -- Return how much of the reduction remains
-        return targetReduction * self.job.data.massSpendRate
-    end,
-
     CompleteJob = function(self)
-        -- Called (by distribution layer) after completion, but not necessarily before the job thread ends.
-        -- Responsible for removing this executor's resources from the job state.
-        if self.success then
-            self.job.specification.count = self.job.specification.count - 1
-        else
+        -- Called after completion, but not necessarily before the job thread ends.
+        if not self.success then
             WARN('Job failed for reason: '..tostring(self.reason))
-        end
-        self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
-        local i = 1
-        while i < self.numEngies do
-            self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.buildRates[i]
-            self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[i]
-            i = i+1
-        end
-        self:ClearDeadAssisters()
-        if self.numEngies > 1 then
-            -- Copy out of subsidiaryEngies since it may contain nil values
-            local engies = {}
-            i = 1
-            while i < self.numEngies do
-                engies[i] = self.subsidiaryEngies[i]
-                i = i+1
-            end
-            self.commandInterface:IssueStop(engies)
         end
     end,
 
@@ -132,8 +67,6 @@ JobExecutor = Class({
                     self.numEngies = self.numEngies - 1
                     if i < self.numEngies then
                         self.subsidiaryEngies[i] = self.subsidiaryEngies[self.numEngies]
-                        self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.buildRates[i]
-                        self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[i]
                         self.buildRates[i] = self.buildRates[self.numEngies]
                         self.subsidiaryEngies[i].executorIndex = i
                         self.subsidiaryEngies[self.numEngies] = nil
@@ -145,10 +78,8 @@ JobExecutor = Class({
         end
     end,
 
-    ResetSpendStats = function(self)
-        self.actualSpend = 0
-        self.theoreticalSpend = 0
-    end,
+    ResetSpendStats = function(self) self.buildpower = self.builderRate end,
+    GetBuildpower = function(self) return self.buildpower end
 
     CheckAssistingEngies = function(self)
         -- Iterate through self.subsidiaryEngies checking for idleness, and recording stats.
@@ -159,11 +90,13 @@ JobExecutor = Class({
             if self.subsidiaryEngies[i]:IsIdleState() then
                 idleFound = true
                 table.insert(idleEngies,self.subsidiaryEngies[i])
+                self.buildpower = self.buildpower + self.buildRates[i] * BUILDPOWER_MODIFIER
             elseif not self.subsidiaryEngies[i]:IsMoving() then
                 -- Assume we're building if we're stationary and not idle?
-                self.actualSpend = self.actualSpend + self.buildRates[i] * self.job.data.massSpendRate
+                self.buildpower = self.buildpower + self.buildRates[i]
+            else
+                self.buildpower = self.buildpower + self.buildRates[i] * BUILDPOWER_MODIFIER
             end
-            self.theoreticalSpend = self.theoreticalSpend + self.buildRates[i] * self.job.data.massSpendRate
             i = i + 1
         end
         if idleFound then
@@ -187,13 +120,13 @@ JobExecutor = Class({
 })
 
 MobileJobExecutor = Class(JobExecutor){
-    Init = function(self,builder,job,buildLocation,buildID,brain)
-        JobExecutor.Init(self,builder,job,brain)
+    Init = function(self,brain,builder,blueprintID,buildLocation)
+        JobExecutor.Init(self,brain,builder,blueprintID)
         -- Some more flags we'll need
         self.reissue = true
         -- Build location deconfliction / marker management
         self.buildLocation = buildLocation
-        self.buildID = buildID
+        self.isMobile = true
     end,
 
     ClearDeadBuilders = function(self)
@@ -204,9 +137,6 @@ MobileJobExecutor = Class(JobExecutor){
                 if self.numEngies > 1 then
                     self.numEngies = self.numEngies - 1
                     self.mainBuilder = self.subsidiaryEngies[self.numEngies]
-                    self.mainBuilder.FlowAI.assistingExecutor = false
-                    self.job.data.totalBuildpower = self.job.data.totalBuildpower - self.builderRate
-                    self.job.data.assistBuildpower = self.job.data.assistBuildpower - self.buildRates[self.numEngies]
                     self.subsidiaryEngies[self.numEngies] = nil
                 else
                     self.numEngies = 0
@@ -256,19 +186,14 @@ MobileJobExecutor = Class(JobExecutor){
                 self.reason = "Order reissue limit exceeded."
             end
         end
-        self.theoreticalSpend = self.theoreticalSpend + self.builderRate * self.job.data.massSpendRate
-        if self.mainBuilder:IsUnitState('Building') or self.mainBuilder:IsUnitState('Repairing') then
-            self.actualSpend = self.actualSpend + self.builderRate * self.job.data.massSpendRate
-        end
+        self.buildpower = self.buildpower + self.builderRate
     end,
 
     JobThread = function(self)
-        local start = PROFILER:Now()
+        local workLimiter = CreateWorkLimiter(1,"MobileJobExecutor:JobThread")
         -- Initialise job
         self.commandInterface:IssueBuildMobile({self.mainBuilder},self.buildLocation,self.toBuildID)
-        PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
-        WaitTicks(1)
-        start = PROFILER:Now()
+        workLimiter:WaitTicks(1)
         while (not self.complete) and (self.numEngies > 0 or self.target) do
             -- Clear out dead engies
             self:ClearDeadBuilders()
@@ -291,15 +216,18 @@ MobileJobExecutor = Class(JobExecutor){
                 self:CheckMainBuilder()
                 self:CheckAssistingEngies()
             end
-            PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
-            WaitTicks(2)
-            start = PROFILER:Now()
+            workLimiter:WaitTicks(2)
         end
-        PROFILER:Add("MobileJobExecutor:JobThread",PROFILER:Now()-start)
+        workLimiter:End()
     end,
 }
 
 FactoryJobExecutor = Class(JobExecutor){
+    Init = function(self,brain,builder,blueprintID)
+        JobExecutor.Init(self,brain,builder,blueprintID)
+        self.isFactory = true
+    end,
+
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
         if (self.numEngies > 0) and ((not self.mainBuilder) or self.mainBuilder.Dead) then
@@ -312,10 +240,10 @@ FactoryJobExecutor = Class(JobExecutor){
 
     CheckTarget = function(self)
         -- Try to update self.target.
-        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.FlowAI.previousBuilt) then
+        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.FlowAI.jobData.previousBuilt) then
             self.target = self.mainBuilder.UnitBeingBuilt
             -- Cache this, because it doesn't update until a new unit starts (which is effing annoying)
-            self.mainBuilder.FlowAI.previousBuilt = self.mainBuilder.UnitBeingBuilt
+            self.mainBuilder.FlowAI.jobData.previousBuilt = self.mainBuilder.UnitBeingBuilt
             self.started = true
         end
         -- If target destroyed then complete with failure
@@ -339,19 +267,14 @@ FactoryJobExecutor = Class(JobExecutor){
             self.success = false
             self.reason = "Unknown problem - factory found idle."
         end
-        self.theoreticalSpend = self.theoreticalSpend + self.builderRate * self.job.data.massSpendRate
-        if not self.mainBuilder:IsIdleState() then
-            self.actualSpend = self.actualSpend + self.builderRate * self.job.data.massSpendRate
-        end
+        self.buildpower = self.buildpower + self.builderRate
     end,
 
     JobThread = function(self)
-        local start = PROFILER:Now()
+        local workLimiter = CreateWorkLimiter(1,"FactoryJobExecutor:JobThread")
         -- Initialise job
         self.commandInterface:IssueBuildFactory({self.mainBuilder},self.toBuildID,1)
-        PROFILER:Add("FactoryJobExecutor:JobThread",PROFILER:Now()-start)
-        WaitTicks(1)
-        start = PROFILER:Now()
+        workLimiter:WaitTicks(1)
         while not self.complete do
             -- Clear out dead engies
             self:ClearDeadBuilders()
@@ -372,15 +295,18 @@ FactoryJobExecutor = Class(JobExecutor){
                 self:CheckMainBuilder()
                 self:CheckAssistingEngies()
             end
-            PROFILER:Add("FactoryJobExecutor:JobThread",PROFILER:Now()-start)
-            WaitTicks(2)
-            start = PROFILER:Now()
+            workLimiter:WaitTicks(2)
         end
-        PROFILER:Add("FactoryJobExecutor:JobThread",PROFILER:Now()-start)
+        workLimiter:End()
     end,
 }
 
 UpgradeJobExecutor = Class(JobExecutor){
+    Init = function(self,brain,builder,blueprintID)
+        JobExecutor.Init(self,brain,builder,blueprintID)
+        self.isUpgrade = true
+    end,
+
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
         if (self.numEngies > 0) and ((not self.mainBuilder) or self.mainBuilder.Dead) and ((not self.target) or self.target.Dead) then
@@ -393,10 +319,10 @@ UpgradeJobExecutor = Class(JobExecutor){
 
     CheckTarget = function(self)
         -- Try to update self.target.
-        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.FlowAI.previousBuilt) then
+        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.FlowAI.jobData.previousBuilt) then
             self.target = self.mainBuilder.UnitBeingBuilt
             -- Cache this, because it doesn't update until a new unit starts (which is effing annoying)
-            self.mainBuilder.FlowAI.previousBuilt = self.mainBuilder.UnitBeingBuilt
+            self.mainBuilder.FlowAI.jobData.previousBuilt = self.mainBuilder.UnitBeingBuilt
             self.started = true
         end
         -- If target destroyed then complete with failure
@@ -420,19 +346,13 @@ UpgradeJobExecutor = Class(JobExecutor){
             self.success = false
             self.reason = "Unknown problem - structure found idle."
         end
-        self.theoreticalSpend = self.theoreticalSpend + self.builderRate * self.job.data.massSpendRate
-        if not self.mainBuilder:IsIdleState() then
-            self.actualSpend = self.actualSpend + self.builderRate * self.job.data.massSpendRate
-        end
     end,
 
     JobThread = function(self)
-        local start = PROFILER:Now()
+        local workLimiter = CreateWorkLimiter(1,"UpgradeJobExecutor:JobThread")
         -- Initialise job
         self.commandInterface:IssueUpgrade({self.mainBuilder},self.toBuildID)
-        PROFILER:Add("UpgradeJobExecutor:JobThread",PROFILER:Now()-start)
-        WaitTicks(1)
-        start = PROFILER:Now()
+        workLimiter:WaitTicks(1)
         while not self.complete do
             -- Clear out dead engies
             self:ClearDeadBuilders()
@@ -453,10 +373,8 @@ UpgradeJobExecutor = Class(JobExecutor){
                 self:CheckMainBuilder()
                 self:CheckAssistingEngies()
             end
-            PROFILER:Add("UpgradeJobExecutor:JobThread",PROFILER:Now()-start)
-            WaitTicks(2)
-            start = PROFILER:Now()
+            workLimiter:WaitTicks(2)
         end
-        PROFILER:Add("UpgradeJobExecutor:JobThread",PROFILER:Now()-start)
+        workLimiter:End()
     end,
 }
