@@ -101,8 +101,8 @@ MobileWorkItem = Class(WorkItem){
         if self.job.active >= self.job.count then
             return false
         end
-        -- Check if a new executor even makes sense for this location
-        if self.location.singular and self.numExecutors >= 1 then
+        -- Check if the location is free
+        if not self.location:IsFree() then
             return false
         end
         -- Is the job pathable?
@@ -140,6 +140,7 @@ MobileWorkItem = Class(WorkItem){
         self.job.active = self.job.active + 1
         local bp = engineer:GetBlueprint()
         self.job.buildpower = self.job.buildpower + bp.Economy.BuildRate
+        self.location:StartBuild(executor, buildLocation)
         return executor
     end,
     AssistJob = function(self, engineer)
