@@ -105,17 +105,7 @@ JobExecutor = Class({
     end,
 
     Run = function(self)
-        self:ForkThread(self.JobThread)
-    end,
-
-    ForkThread = function(self, fn, ...)
-        if fn then
-            local thread = ForkThread(fn, self, unpack(arg))
-            self.trash:Add(thread)
-            return thread
-        else
-            return nil
-        end
+        self.brain:ForkThread(self, self.JobThread)
     end,
 })
 

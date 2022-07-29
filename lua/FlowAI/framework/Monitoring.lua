@@ -66,16 +66,6 @@ UnitMonitoring = class({
     end,
 
     Run = function(self)
-        self:ForkThread(self.MonitoringThread)
-    end,
-
-    ForkThread = function(self, fn, ...)
-        if fn then
-            local thread = ForkThread(fn, self, unpack(arg))
-            self.brain.trash:Add(thread)
-            return thread
-        else
-            return nil
-        end
+        self.brain:ForkThread(self, self.MonitoringThread)
     end,
 })

@@ -51,17 +51,8 @@ Profiler = Class({
     end,
 
     Run = function(self)
-        self:ForkThread(self.MonitorThread)
-    end,
-
-    ForkThread = function(self, fn, ...)
-        if fn then
-            local thread = ForkThread(fn, self, unpack(arg))
-            self.Trash:Add(thread)
-            return thread
-        else
-            return nil
-        end
+        local thread = ForkThread(self.MonitorThread, self)
+        self.Trash:Add(thread)
     end,
 })
 

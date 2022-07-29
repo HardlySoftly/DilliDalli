@@ -173,4 +173,9 @@ JobDistributor = Class({
             self:AssistJob(engineer, bestWorkItem)
         end
     end,
+
+    Run = function(self)
+        self.brain:ForkThread(self, self.EngineerMonitoringThread)
+        self.brain:ForkThread(self, self.JobMonitoringThread)
+    end,
 })
