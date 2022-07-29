@@ -149,7 +149,7 @@ function LoadProductionGraph()
 end
 
 function GetProductionGraph()
-    -- TODO: attempt to load this fewer times
+    -- Only load the graph once
     if not PRODUCTION_GRAPH then
         LoadProductionGraph()
     end
