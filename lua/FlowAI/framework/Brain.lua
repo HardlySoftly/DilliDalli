@@ -1,6 +1,7 @@
 local CommandInterface = import('/mods/DilliDalli/lua/FlowAI/framework/CommandInterface.lua').CommandInterface
 local JobDistributor = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/JobDistribution.lua').JobDistributor
 local Monitoring = import('/mods/DilliDalli/lua/FlowAI/framework/Monitoring.lua')
+local LocationManager = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Location.lua').LocationManager
 
 
 Brain = Class({
@@ -15,12 +16,14 @@ Brain = Class({
         self.monitoring = Monitoring.UnitMonitoring()
         -- For monitoring and executing all commands going from the AI to the Sim
         self.commandInterface = CommandInterface()
+        -- For handling job Location instances
+        self.locationManager = LocationManager()
         -- For distributing jobs
         self.jobDistributor = JobDistributor()
 
         -- Initialise brain components
         self.monitoring:Init(self)
-        self.deconfliction:Init()
+        self.locationManager:Init(self)
         self.jobDistributor:Init(self)
         LOG("DilliDalli Brain initialised...")
 
@@ -33,6 +36,7 @@ Brain = Class({
         WaitSeconds(1)
         -- Do any pre-building setup
         self.monitoring:Run()
+        self.locationManager:Run()
         WaitSeconds(4)
         -- Start the game!
         self.jobDistributor:Run()
