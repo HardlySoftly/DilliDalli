@@ -34,6 +34,7 @@ end
 
 UnitMonitoring = class({
     Init = function(self,brain)
+        self.brain = brain
         self.registrations = {}
     end,
 
@@ -56,6 +57,7 @@ UnitMonitoring = class({
                 
             end
         end
+        workLimiter:End()
     end,
 
     RegisterInterest = function(self, unitBlueprint, unitList)

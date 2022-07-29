@@ -83,6 +83,7 @@ JobDistributor = Class({
                 workLimiter:MaybeWait()
             end
         end
+        workLimiter:End()
     end,
 
     EngineerMonitoringThread = function(self)
@@ -112,6 +113,7 @@ JobDistributor = Class({
                 engineer = self.newUnitList:FetchUnit()
             end
         end
+        workLimiter:End()
     end,
 
     StartJob = function(self, engineer, workItem)
