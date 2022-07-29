@@ -104,6 +104,13 @@ JobDistributor = Class({
                     i = i+1
                 end
             end
+            local engineer = self.newUnitList:FetchUnit()
+            while engineer do
+                self:AddEngineer(engineer)
+                self:FindJob(engineer)
+                workLimiter:MaybeWait()
+                engineer = self.newUnitList:FetchUnit()
+            end
         end
     end,
 
