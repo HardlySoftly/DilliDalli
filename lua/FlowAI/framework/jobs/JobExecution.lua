@@ -32,7 +32,7 @@ JobExecutor = Class({
         self.numEngies = 1
 
         -- Assigned buildpower
-        self.buildpower = 0
+        self.buildpower = self.builderRate
 
         -- Record job type
         self.isMobile = false
@@ -76,7 +76,7 @@ JobExecutor = Class({
         end
     end,
 
-    ResetSpendStats = function(self) self.buildpower = self.builderRate end,
+    ResetSpendStats = function(self) self.buildpower = 0 end,
     GetBuildpower = function(self) return self.buildpower end,
 
     CheckAssistingEngies = function(self)
@@ -174,6 +174,7 @@ MobileJobExecutor = Class(JobExecutor){
                 self.reason = "Order reissue limit exceeded."
             end
         end
+        -- TODO: downweight builderRate if builder is still en-route
         self.buildpower = self.buildpower + self.builderRate
     end,
 
@@ -334,6 +335,7 @@ UpgradeJobExecutor = Class(JobExecutor){
             self.success = false
             self.reason = "Unknown problem - structure found idle."
         end
+        self.buildpower = self.buildpower + self.builderRate
     end,
 
     JobThread = function(self)

@@ -119,7 +119,7 @@ MobileWorkItem = Class(WorkItem){
         local i = 1
         while i <= self.numExecutors do
             local executor = self.executors[i]
-            if (not executor.complete) and (executor:GetTotalBuildpower() < self.maxBuildpower) and MAP:UnitCanPathTo(engineer, executor.buildLocation) then
+            if (not executor.complete) and (executor:GetBuildpower() < self.maxBuildpower) and MAP:UnitCanPathTo(engineer, executor.buildLocation) then
                 return true
             end
             i = i+1
@@ -133,11 +133,15 @@ MobileWorkItem = Class(WorkItem){
         local executor = JobExecution.MobileJobExecutor()
         executor:Init(brain, engineer, bpID, buildLocation)
         executor:Run()
+        -- Store executor
+        self.numExecutors = self.numExecutors + 1
+        self.executors[self.numExecutors] = executor
         -- Update job state
         self.job.active = self.job.active + 1
         local bp = engineer:GetBlueprint()
         self.job.buildpower = self.job.buildpower + bp.Economy.BuildRate
         self.location:StartBuild(executor, buildLocation)
+        -- Finish
         return executor
     end,
     AssistJob = function(self, engineer)
