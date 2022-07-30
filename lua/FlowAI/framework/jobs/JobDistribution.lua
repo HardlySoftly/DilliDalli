@@ -146,18 +146,23 @@ JobDistributor = Class({
                     while j <= job.numWorkItems do
                         local workItem = job.workItems[j]
                         if (not (workItem == nil)) and workItem.keep then
-                            local utility = workItem:GetUtility(engineer)*budgetScalar
-                            if ((job.priority > bestPriority) or (utility > bestUtility)) then
-                                if workItem:CanAssistWith(engineer) then
-                                    bestWorkItem = workItem
-                                    bestPriority = job.priority
-                                    bestUtility = utility
-                                    assist = true
-                                elseif workItem:CanStartWith(engineer) then
-                                    bestWorkItem = workItem
-                                    bestPriority = job.priority
-                                    bestUtility = utility
-                                    assist = false
+                            -- Calculate and cache the ability to start / assist first (this is cheaper than running GetUtility)
+                            local canAssist = workItem:CanAssistWith(engineer)
+                            local canStart = workItem:CanStartWith(engineer)
+                            if canAssist or canStart then
+                                local utility = workItem:GetUtility(engineer)*budgetScalar
+                                if ((job.priority > bestPriority) or (utility > bestUtility)) then
+                                    if canAssist then
+                                        bestWorkItem = workItem
+                                        bestPriority = job.priority
+                                        bestUtility = utility
+                                        assist = true
+                                    elseif canStart then
+                                        bestWorkItem = workItem
+                                        bestPriority = job.priority
+                                        bestUtility = utility
+                                        assist = false
+                                    end
                                 end
                             end
                         end
