@@ -19,7 +19,7 @@ local GetProductionGraph = import('/mods/DilliDalli/lua/FlowAI/framework/product
 local JobExecution = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/JobExecution.lua')
 
 -- Don't add buildpower if the buildtime will drop below this
-local MIN_BUILD_TIME = 15
+local MIN_BUILD_TIME_SECONDS = 15
 --[[
     Utility modification calculation is as follows:
     base_utility/(1+math.max(0,(time_to_start-BASE_MOVE_TIME_SECONDS)/UTILITY_HALF_RATE_SECONDS))
@@ -74,8 +74,6 @@ local function TranslateProductionID(builder, productionID)
     end
 end
 
-local ID = 1
-
 WorkItem = Class({
     Init = function(self, job)
         self.job = job
@@ -83,6 +81,7 @@ WorkItem = Class({
         self.keep = true
         self.executors = {}
         self.numExecutors = 0
+        self.maxBuildpower = self.job.buildTime/MIN_BUILD_TIME_SECONDS
     end,
     -- Job owner interface functions
     Destroy = function(self) self.keep = false end,
@@ -118,20 +117,18 @@ MobileWorkItem = Class(WorkItem){
     end,
     CanAssistWith = function(self, engineer)
         local i = 1
-        local maxBuildpower = self.job.buildTime/MIN_BUILD_TIME_SECONDS
         while i <= self.numExecutors do
             local executor = self.executors[i]
-            if (not executor.complete) and (executor:GetTotalBuildpower() < maxBuildpower) and MAP:UnitCanPathTo(engineer, executor.buildLocation) then
+            if (not executor.complete) and (executor:GetTotalBuildpower() < self.maxBuildpower) and MAP:UnitCanPathTo(engineer, executor.buildLocation) then
                 return true
             end
             i = i+1
         end
         return false
     end,
-    StartJob = function(self, engineer)
+    StartJob = function(self, engineer, brain)
         -- Create executor
         local bpID = TranslateProductionID(engineer, self.job.productionID)
-        local brain = engineer:GetAIBrain()
         local buildLocation = self.location:GetBuildPosition()
         local executor = JobExecution.MobileJobExecutor()
         executor:Init(brain, engineer, bpID, buildLocation)
@@ -162,8 +159,15 @@ MobileWorkItem = Class(WorkItem){
     end,
     GetUtility = function(self, engineer)
         -- Return modified own utility
+        -- TODO: Account for risk to engineer
         local bp = engineer:GetBlueprint()
-        local maxSpeed = (bp.Air.MaxAirspeed or bp.Physics.MaxSpeed) or 0.1
+        local maxSpeed = bp.Physics.MaxSpeed
+        if bp.Physics.MotionType == "RULEUMT_Air" then
+            maxSpeed = bp.Air.MaxAirspeed
+        end
+        if maxSpeed <= 0 then
+            maxSpeed = 0.1
+        end
         local pos = engineer.FlowAI.jobData:GetLastPosition()
         local destination = self.location:GetCentrePosition()
         local xDelta = destination[1] - pos[1]
@@ -228,9 +232,6 @@ Job = Class({
         self.workItems = {}
         self.numWorkItems = 0
 
-        -- Job state, meddle with this at your peril.
-        ID = ID + 1
-        self.id = ID
         -- TODO: Handle translation layer better
         self.bp = nil
         if PRODUCTION_TRANSLATION[self.productionID] then
@@ -257,10 +258,10 @@ Job = Class({
         return workItem
     end,
 
-    SetPriority = function(self, priority) self.priority = priority end
+    SetPriority = function(self, priority) self.priority = priority end,
     SetBudget = function(self, budget) self.budget = budget end,
     SetCount = function(self, count) self.count = count end,
-    GetSpend = function(self) return self.buildpower*self.buildRate end
+    GetSpend = function(self) return self.buildpower*self.buildRate end,
     Destroy = function(self) self.keep = false end,
 
     CheckState = function(self)

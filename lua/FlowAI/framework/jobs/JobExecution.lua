@@ -12,8 +12,6 @@ local BUILDPOWER_MODIFIER = 0.5
 JobExecutor = Class({
     Init = function(self,brain,builder,blueprintID)
         self.brain = brain
-        -- Somwhere to dump old threads
-        self.trash = brain.trash
         -- Some flags we'll need
         self.complete = false
         self.success = false
@@ -79,7 +77,7 @@ JobExecutor = Class({
     end,
 
     ResetSpendStats = function(self) self.buildpower = self.builderRate end,
-    GetBuildpower = function(self) return self.buildpower end
+    GetBuildpower = function(self) return self.buildpower end,
 
     CheckAssistingEngies = function(self)
         -- Iterate through self.subsidiaryEngies checking for idleness, and recording stats.

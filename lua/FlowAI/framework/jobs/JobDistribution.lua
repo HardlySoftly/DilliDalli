@@ -26,10 +26,10 @@ local EngineerData = Class({
         self.assistingExecutor = isAssist
     end,
     IsBusy = function(self)
-        if this.jobExecutor.complete then
-            this.jobExecutor = nil
+        if self.jobExecutor.complete then
+            self.jobExecutor = nil
         end
-        return this.jobExecutor ~= nil
+        return self.jobExecutor ~= nil
     end,
     GetLastPosition = function(self)
         -- Return expected position of engineer at end of job queue (TODO)
@@ -56,7 +56,7 @@ JobDistributor = Class({
 
     AddJob = function(self, job)
         self.numJobs = self.numJobs + 1
-        self.jobs[numJobs] = job
+        self.jobs[self.numJobs] = job
     end,
 
     AddEngineer = function(self, engineer)
@@ -69,7 +69,7 @@ JobDistributor = Class({
     JobMonitoringThread = function(self)
         local workLimiter = CreateWorkLimiter(WORK_RATE,"JobDistributor:JobMonitoringThread")
         while self.brain:IsAlive() and workLimiter:Wait() do
-            local i = 0
+            local i = 1
             while i <= self.numJobs do
                 local job = self.jobs[i]
                 if (job == nil) or (not job.keep) then
@@ -89,7 +89,7 @@ JobDistributor = Class({
     EngineerMonitoringThread = function(self)
         local workLimiter = CreateWorkLimiter(WORK_RATE,"JobDistributor:EngineerMonitoringThread")
         while self.brain:IsAlive() and workLimiter:Wait() do
-            local i = 0
+            local i = 1
             while i <= self.numEngineers do
                 local engineer = self.engineers[i]
                 if (engineer == nil) or engineer.Dead then
@@ -117,13 +117,13 @@ JobDistributor = Class({
     end,
 
     StartJob = function(self, engineer, workItem)
-        local executor = workItem:StartJob(engineer)
-        engineer.jobData:SetExecutor(executor, false)
+        local executor = workItem:StartJob(engineer, self.brain)
+        engineer.FlowAI.jobData:SetExecutor(executor, false)
     end,
 
     AssistJob = function(self, engineer, workItem)
         local executor = workItem:AssistJob(engineer)
-        engineer.jobData:SetExecutor(executor, true)
+        engineer.FlowAI.jobData:SetExecutor(executor, true)
     end,
 
     FindJob = function(self, engineer)
@@ -131,7 +131,7 @@ JobDistributor = Class({
         local assist = false
         local bestPriority = PRIORITY.NONE
         local bestUtility = 0
-        local i = 0
+        local i = 1
         while i <= self.numJobs do
             local job = self.jobs[i]
             local spend = job:GetSpend()
@@ -141,14 +141,14 @@ JobDistributor = Class({
                 self.numJobs = self.numJobs - 1
             else
                 if (job.priority >= bestPriority) and (job.budget > 0) and (spend < job.budget) then
-                    local j = 0
+                    local j = 1
                     local budgetScalar = (job.budget - spend)/job.budget
                     while j <= job.numWorkItems do
                         local workItem = job.workItems[j]
                         if (not (workItem == nil)) and workItem.keep then
                             local utility = workItem:GetUtility(engineer)*budgetScalar
                             if ((job.priority > bestPriority) or (utility > bestUtility)) then
-                                if workItem:CanAssistWith(engineer)
+                                if workItem:CanAssistWith(engineer) then
                                     bestWorkItem = workItem
                                     bestPriority = job.priority
                                     bestUtility = utility

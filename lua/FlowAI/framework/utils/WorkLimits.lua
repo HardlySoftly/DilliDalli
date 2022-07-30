@@ -13,16 +13,16 @@ WorkLimiter = Class({
     end,
     Wait = function(self)
         self.n = self.workRate
-        PROFILER:Add(self.profilingKey,PROFILER:Now()-start)
+        PROFILER:Add(self.profilingKey,PROFILER:Now()-self.start)
         WaitTicks(1)
         self.start = PROFILER:Now()
         return true
     end,
     MaybeWait = function(self)
         self.n = self.n - 1
-        if n == 0 then
-            n = self.workRate
-            PROFILER:Add(self.profilingKey,PROFILER:Now()-start)
+        if self.n == 0 then
+            self.n = self.workRate
+            PROFILER:Add(self.profilingKey,PROFILER:Now()-self.start)
             WaitTicks(1)
             self.start = PROFILER:Now()
             return true
@@ -32,20 +32,20 @@ WorkLimiter = Class({
     end,
     WaitTicks = function(self,numTicks)
         self.n = self.workRate
-        PROFILER:Add(self.profilingKey,PROFILER:Now()-start)
+        PROFILER:Add(self.profilingKey,PROFILER:Now()-self.start)
         WaitTicks(numTicks)
         self.start = PROFILER:Now()
         return true
     end,
     End = function(self)
-        PROFILER:Add(self.profilingKey,PROFILER:Now()-start)
+        PROFILER:Add(self.profilingKey,PROFILER:Now()-self.start)
         self.start = PROFILER:Now()
         return false
     end,
 })
 
-function CreateWorkLimiter(workRate)
+function CreateWorkLimiter(workRate, profilingKey)
     wl = WorkLimiter()
-    wl:Init(math.max(math.round(workRate),1))
+    wl:Init(math.max(math.round(workRate),1), profilingKey)
     return wl
 end

@@ -32,7 +32,7 @@ function CreateUnitList()
     return ul
 end
 
-UnitMonitoring = class({
+UnitMonitoring = Class({
     Init = function(self,brain)
         self.brain = brain
         self.registrations = {}
@@ -41,17 +41,19 @@ UnitMonitoring = class({
     MonitoringThread = function(self)
         local workLimiter = CreateWorkLimiter(WORK_RATE,"UnitMonitoring:MonitoringThread")
         while self.brain:IsAlive() and workLimiter:Wait() do
-            local allUnits = self.brain.aiBrain:GetListOfUnits(categories.ALL,false,true)
+            local allUnits = self.brain.aiBrain:GetListOfUnits(categories.ALLUNITS,false,true)
             workLimiter:Wait()
             for i, unit in allUnits do
                 workLimiter:MaybeWait()
                 if unit and (not unit.Dead) and (not unit.FlowAI) then
                     unit.FlowAI = {}
                     local bpID = unit.UnitId
-                    local j = 1
-                    while j <= self.registrations[bpID].count do
-                        self.registrations[unitBlueprint].lists[j]:AddUnit(unit)
-                        j = j+1
+                    if self.registrations[bpID] then
+                        local j = 1
+                        while j <= self.registrations[bpID].count do
+                            self.registrations[bpID].lists[j]:AddUnit(unit)
+                            j = j+1
+                        end
                     end
                 end
                 
@@ -60,9 +62,12 @@ UnitMonitoring = class({
         workLimiter:End()
     end,
 
-    RegisterInterest = function(self, unitBlueprint, unitList)
-        self.registrations[unitBlueprint].count = self.registrations[unitBlueprint].count + 1
-        self.registrations[unitBlueprint].lists[self.registrations[unitBlueprint].count] = unitList
+    RegisterInterest = function(self, blueprintID, unitList)
+        if not self.registrations[blueprintID] then
+            self.registrations[blueprintID] = { count = 0, lists = {} }
+        end
+        self.registrations[blueprintID].count = self.registrations[blueprintID].count + 1
+        self.registrations[blueprintID].lists[self.registrations[blueprintID].count] = unitList
     end,
 
     Run = function(self)

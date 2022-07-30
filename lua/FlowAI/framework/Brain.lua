@@ -4,6 +4,8 @@ local Monitoring = import('/mods/DilliDalli/lua/FlowAI/framework/Monitoring.lua'
 local LocationManager = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Location.lua').LocationManager
 
 
+local MassMarkerManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/MarkerManagement.lua').MassMarkerManager
+
 Brain = Class({
     Init = function(self,aiBrain)
         LOG("DilliDalli Brain created...")
@@ -12,6 +14,13 @@ Brain = Class({
         self.trash = TrashBag()
 
         -- Create brain components
+        self:CreateComponents()
+
+        -- Start a new thread to handle in-game behaviour, so this thread can return.
+        self:ForkThread(self, self.GameStartThread)
+    end,
+
+    CreateComponents = function(self)
         -- For identifying units as they are built / donated
         self.monitoring = Monitoring.UnitMonitoring()
         -- For monitoring and executing all commands going from the AI to the Sim
@@ -21,21 +30,27 @@ Brain = Class({
         -- For distributing jobs
         self.jobDistributor = JobDistributor()
 
-        -- Initialise brain components
+        self.mexes = MassMarkerManager()
+    end,
+
+    InitialiseComponents = function(self)
         self.monitoring:Init(self)
         self.locationManager:Init(self)
         self.jobDistributor:Init(self)
         LOG("DilliDalli Brain initialised...")
 
-        -- Start a new thread to handle in-game behaviour, so this thread can return.
-        self:ForkThread(self, self.GameStartThread)
+        self.mexes:Init(self)
+        self.mexes:SetBudget(20)
     end,
 
     GameStartThread = function(self)
         -- Allow sim setup and initialisation
         WaitSeconds(1)
+        -- Initialise brain components
+        self:InitialiseComponents()
         -- Do any pre-building setup
         self.monitoring:Run()
+        self.mexes:Run()
         self.locationManager:Run()
         WaitSeconds(4)
         -- Start the game!

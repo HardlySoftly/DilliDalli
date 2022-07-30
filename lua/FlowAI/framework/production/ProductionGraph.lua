@@ -1,5 +1,4 @@
 local MAP = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMap()
-local GenerateAdjacentLocations = import("/mods/DilliDalli/lua/FlowAI/framework/production/Locations.lua").GenerateAdjacentLocations
 
 local PRODUCTION_GRAPH = nil
 local ENGIE_MOD_FLAG = false
@@ -145,7 +144,6 @@ function LoadProductionGraph()
     end
     local END = GetSystemTimeSecondsOnlyForProfileUse()
     LOG(string.format('FlowAI framework: Production graph loading finished (%d units, %d edges), runtime: %.2f seconds.', n, ne, END - START ))
-    GenerateAdjacentLocations(adjacencySizes,maxAdjSize)
 end
 
 function GetProductionGraph()

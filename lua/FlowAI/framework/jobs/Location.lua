@@ -1,14 +1,16 @@
 local WORK_RATE = 10
 local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMap()
-local MARKERS = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMarkers()
+local GetMarkers = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMarkers
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 
 LocationManager = Class({
     Init = function(self, brain)
         self.brain = brain
         self.locations = {}
         self.numLocations = 0
+        local markers = GetMarkers()
         -- Add marker locations
-        for _, v in MARKERS do
+        for _, v in markers do
             local location = MarkerLocation()
             location:Init(self.brain, v.position, v.type)
             self:AddLocation(location)
@@ -52,7 +54,7 @@ LocationManager = Class({
     LocationMonitoringThread = function(self)
         local workLimiter = CreateWorkLimiter(WORK_RATE,"LocationManager:LocationMonitoringThread")
         while self.brain:IsAlive() and workLimiter:Wait() do
-            local i = 0
+            local i = 1
             while i <= self.numLocations do
                 local location = self.locations[i]
                 location:CheckState()
@@ -122,8 +124,8 @@ MarkerLocation = Class(AbstractLocation){
     end,
 
     CheckOccupied = function(self)
-        local alliedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,pos,0.2,'Ally')
-        self.allyOccupied = (not alliedUnits) or (not alliedUnits[1])
+        local alliedUnits = self.brain.aiBrain:GetUnitsAroundPoint(categories.STRUCTURE - categories.WALL,self.centre,0.2,'Ally')
+        self.allyOccupied = alliedUnits and alliedUnits[1]
     end,
 
     CheckSafety = function(self)
