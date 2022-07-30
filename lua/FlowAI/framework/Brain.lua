@@ -6,6 +6,7 @@ local LocationManager = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Locat
 local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMap()
 
 local MassMarkerManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/MarkerManagement.lua').MassMarkerManager
+local PowerAreaManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/AreaManagement.lua').PowerAreaManager
 
 Brain = Class({
     Init = function(self,aiBrain)
@@ -32,6 +33,7 @@ Brain = Class({
         self.jobDistributor = JobDistributor()
 
         self.mexes = MassMarkerManager()
+        self.pgens = PowerAreaManager()
     end,
 
     InitialiseComponents = function(self)
@@ -43,7 +45,10 @@ Brain = Class({
         LOG("DilliDalli Brain initialised...")
 
         self.mexes:Init(self)
-        self.mexes:SetBudget(20)
+        self.mexes:SetBudget(0)
+        self.pgens:Init(self,"POWER_T1")
+        self.pgens:SetBudget(20)
+
     end,
 
     GameStartThread = function(self)
@@ -54,6 +59,7 @@ Brain = Class({
         -- Do any pre-building setup
         self.monitoring:Run()
         self.mexes:Run()
+        self.pgens:Run()
         self.locationManager:Run()
         WaitSeconds(4)
         -- Start the game!
