@@ -10,7 +10,7 @@ MassMarkerManager = Class({
     Init = function(self, brain)
         self.brain = brain
         self.job = Job.Job()
-        self.job:Init("MEX_T1", "mobile", Job.PRIORITY.NORMAL)
+        self.job:Init("MEX_T1", "mobile", Job.PRIORITY.NORMAL, false)
         self.job:SetCount(LARGE_NUMBER)
         self.marginalEnergyCost = 20/75
         self.workItems = {}

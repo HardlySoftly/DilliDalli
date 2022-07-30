@@ -77,6 +77,7 @@ AbstractLocation = Class({
     StartBuild = function(self, executor, position) end,
     IsFree = function(self) end, -- Boolean
     CheckState = function(self) end,
+    BackOff = function(self) end,
 })
 
 MarkerLocation = Class(AbstractLocation){
@@ -87,7 +88,7 @@ MarkerLocation = Class(AbstractLocation){
         self.singular = true
         self.allyOccupied = false
         self.claimed = false
-        self.workItem = nil
+        self.executor = nil
         self.safety = 600
     end,
 

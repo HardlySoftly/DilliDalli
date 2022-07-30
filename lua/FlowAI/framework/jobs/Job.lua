@@ -113,7 +113,6 @@ MobileWorkItem = Class(WorkItem){
             return false
         end
         return true
-        
     end,
     CanAssistWith = function(self, engineer)
         local i = 1
@@ -130,6 +129,10 @@ MobileWorkItem = Class(WorkItem){
         -- Create executor
         local bpID = TranslateProductionID(engineer, self.job.productionID)
         local buildLocation = self.location:GetBuildPosition()
+        if buildLocation == nil then
+            self.location:BackOff()
+            return nil
+        end
         local executor = JobExecution.MobileJobExecutor()
         executor:Init(brain, engineer, bpID, buildLocation)
         executor:Run()
@@ -163,6 +166,9 @@ MobileWorkItem = Class(WorkItem){
     end,
     GetUtility = function(self, engineer)
         -- Return modified own utility
+        if self.utility <= 0 then
+            return 0
+        end
         -- TODO: Account for risk to engineer
         local bp = engineer:GetBlueprint()
         local maxSpeed = bp.Physics.MaxSpeed
@@ -201,7 +207,6 @@ MobileWorkItem = Class(WorkItem){
                     self.job.count = self.job.count - 1
                 end
                 self.executors[i]:CompleteJob()
-                self.job.active = self.job.active - 1
                 self.executors[i] = self.executors[self.numExecutors]
                 self.executors[self.numExecutors] = nil
                 self.numExecutors = self.numExecutors - 1
@@ -217,12 +222,15 @@ MobileWorkItem = Class(WorkItem){
 }
 
 Job = Class({
-    Init = function(self, productionID, jobType, priority)
+    Init = function(self, productionID, jobType, priority, debugJob)
         if PRODUCTION_GRAPH == nil then
             PRODUCTION_GRAPH = GetProductionGraph()
         end
         -- Keep the job, or drop?
         self.keep = true
+        -- Debugging flag
+        self.debugJob = debugJob
+        self.lastDebug = 0
         -- Specification data, simple values
         self.productionID = productionID
         self.priority = priority
@@ -282,6 +290,18 @@ Job = Class({
                 self.buildpower = self.buildpower + workItem:GetBuildpower()
                 i = i+1
             end
+        end
+        if self.debugJob and (_G.GetGameTick() >= self.lastDebug+20) then
+            self.lastDebug = _G.GetGameTick()
+            _ALERT((
+                "Job Debug: {pri: "..tostring(self.priority)..
+                ", budget: "..tostring(self.budget)..
+                ", buildpower: "..tostring(self.buildpower)..
+                ", numWorkItems: "..tostring(self.numWorkItems)..
+                ", count: "..tostring(self.count)..
+                ", active: "..tostring(self.active)..
+                "}"
+            ))
         end
     end,
 })

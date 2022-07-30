@@ -127,6 +127,8 @@ JobDistributor = Class({
     end,
 
     FindJob = function(self, engineer)
+        -- TODO: find best engineer for jobs, as well as best jobs for engineers
+        -- TODO: factory / upgrade support
         local bestWorkItem = nil
         local assist = false
         local bestPriority = PRIORITY.NONE
@@ -151,7 +153,7 @@ JobDistributor = Class({
                             local canStart = workItem:CanStartWith(engineer)
                             if canAssist or canStart then
                                 local utility = workItem:GetUtility(engineer)*budgetScalar
-                                if ((job.priority > bestPriority) or (utility > bestUtility)) then
+                                if (utility > 0) and ((job.priority > bestPriority) or (utility > bestUtility)) then
                                     if canAssist then
                                         bestWorkItem = workItem
                                         bestPriority = job.priority
