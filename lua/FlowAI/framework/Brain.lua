@@ -3,6 +3,7 @@ local JobDistributor = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/JobDis
 local Monitoring = import('/mods/DilliDalli/lua/FlowAI/framework/Monitoring.lua')
 local LocationManager = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Location.lua').LocationManager
 
+local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMap()
 
 local MassMarkerManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/MarkerManagement.lua').MassMarkerManager
 
@@ -34,6 +35,8 @@ Brain = Class({
     end,
 
     InitialiseComponents = function(self)
+        self.zoneSet = MAP:GetZoneSet('ExampleZoneSet',1)
+
         self.monitoring:Init(self)
         self.locationManager:Init(self)
         self.jobDistributor:Init(self)
@@ -68,6 +71,7 @@ Brain = Class({
             self.trash:Add(thread)
             return thread
         else
+            WARN("ForkThread called, but provided function was nil...")
             return nil
         end
     end,

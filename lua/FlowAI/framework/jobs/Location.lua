@@ -1,5 +1,4 @@
 local WORK_RATE = 10
-local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMap()
 local GetMarkers = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMarkers
 local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 
@@ -14,6 +13,15 @@ LocationManager = Class({
             local location = MarkerLocation()
             location:Init(self.brain, v.position, v.type)
             self:AddLocation(location)
+        end
+        -- Add zone locations
+        local i = 1
+        while i <= self.brain.zoneSet.numZones do
+            local zone = self.brain.zoneSet.zones[i]
+            local location = ZoneLocation()
+            location:Init(self.brain, 1, zone)
+            self:AddLocation(location)
+            i = i+1
         end
     end,
 
@@ -72,7 +80,7 @@ LocationManager = Class({
 
 
 AbstractLocation = Class({
-    GetBuildPosition = function(self) end, -- {x, y, z}
+    GetBuildPosition = function(self, engineer, blueprintID) end, -- {x, y, z}
     GetCentrePosition = function(self) end, -- {x, y, z}
     StartBuild = function(self, executor, position) end,
     IsFree = function(self) end, -- Boolean
@@ -92,7 +100,7 @@ MarkerLocation = Class(AbstractLocation){
         self.safety = 600
     end,
 
-    GetBuildPosition = function(self)
+    GetBuildPosition = function(self, engineer, blueprintID)
         return {self.centre[1], self.centre[2], self.centre[3]}
     end,
 
@@ -129,6 +137,48 @@ MarkerLocation = Class(AbstractLocation){
         self.allyOccupied = alliedUnits and alliedUnits[1]
     end,
 
+    CheckSafety = function(self)
+        -- TODO
+    end,
+}
+
+ZoneLocation = Class(AbstractLocation){
+    Init = function(self, brain, component, zone)
+        self.brain = brain
+        self.component = component
+        self.zone = zone
+        self.type = "Zone-"..tostring(component)
+        self.singular = false
+        self.safety = 600
+        self.backoff = 0
+        self.backoffCount = 0
+    end,
+    BackOff = function(self)
+        -- We returned a nil location, so don't allow new jobs for a while.
+        self.backoffCount = self.backoffCount + 1
+        self.backoff = math.min(self.backoffCount*10,1000)
+    end,
+    GetBuildPosition = function(self, engineer, blueprintID)
+        -- TODO!!
+        local pos = {self.zone.pos[1]+2, self.zone.pos[2], self.zone.pos[3]+2}
+        if not self.brain.aiBrain:CanBuildStructureAt(blueprintID, pos) then
+            return nil
+        end
+        return pos
+    end,
+    GetCentrePosition = function(self)
+        return self.zone.pos
+    end,
+    StartBuild = function(self, executor, position)
+        -- TODO: build deconfliction
+    end,
+    IsFree = function(self)
+        return self.backoff == 0
+    end,
+    CheckState = function(self)
+        self.backoff = math.max(0, self.backoff - 1)
+        self:CheckSafety()
+    end,
     CheckSafety = function(self)
         -- TODO
     end,

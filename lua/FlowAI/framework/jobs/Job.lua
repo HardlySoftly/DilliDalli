@@ -128,7 +128,7 @@ MobileWorkItem = Class(WorkItem){
     StartJob = function(self, engineer, brain)
         -- Create executor
         local bpID = TranslateProductionID(engineer, self.job.productionID)
-        local buildLocation = self.location:GetBuildPosition()
+        local buildLocation = self.location:GetBuildPosition(engineer, bpID)
         if buildLocation == nil then
             self.location:BackOff()
             return nil

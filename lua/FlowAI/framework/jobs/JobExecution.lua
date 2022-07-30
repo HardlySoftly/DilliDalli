@@ -45,6 +45,7 @@ JobExecutor = Class({
         local buildRate = assister:GetBuildRate()
         self.buildRates[self.numEngies] = buildRate
         self.numEngies = self.numEngies + 1
+        self.buildpower = self.buildpower+buildRate
         -- If the engie is already doing something, stop.  Then we know to pick it up later and issue a new order.
         self.commandInterface:IssueStop({assister})
     end,

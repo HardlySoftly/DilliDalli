@@ -36,7 +36,7 @@ ExampleZoneSet = Class(ZoneSet){
 -- Now implement a 'GetZoneSetClasses' function to export the zones you want to include in the game.
 function GetZoneSetClasses()
     -- Set to true if you want to test this
-    local testingExampleZoneSet = false
+    local testingExampleZoneSet = true
     if testingExampleZoneSet then
         -- Include as many classes here as you like (and are willing to take the performance hit for).
         return {ExampleZoneSet}
