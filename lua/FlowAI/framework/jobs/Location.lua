@@ -1,6 +1,45 @@
 local WORK_RATE = 10
 local GetMarkers = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMarkers
 local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
+
+local SEARCH_GRID = nil
+local SEARCH_GRID_SIZE = -1
+local function InitSearchGrid()
+    SEARCH_GRID_SIZE = 0
+    local remaining = 2500
+    local lim = 2*math.sqrt(remaining)
+    local pq = CreatePriorityQueue()
+    local x = 0
+    while x < lim do
+        local z = 0
+        while z < lim do
+            local priority = ((x*x) + (z*z)) * (1 + math.mod(x,2)) * (1 + math.mod(z,2))
+            if (x > 0) and (z > 0) then
+                pq:Queue({priority = priority, x = -x, z = -z})
+            end
+            if x > 0 then
+                pq:Queue({priority = priority, x = -x, z = z})
+            end
+            pq:Queue({priority = priority, x = x, z = z})
+            if z > 0 then
+                pq:Queue({priority = priority, x = x, z = -z})
+            end
+            z = z+1
+        end
+        x = x+1
+    end
+    while remaining > 0 do
+        local item = pq:Dequeue()
+        remaining = remaining - 1
+        SEARCH_GRID_SIZE = SEARCH_GRID_SIZE + 1
+        SEARCH_GRID[SEARCH_GRID_SIZE] = {item.x, item.z}
+    end
+end
+
+do
+    InitSearchGrid()
+end
 
 LocationManager = Class({
     Init = function(self, brain)
@@ -159,12 +198,16 @@ ZoneLocation = Class(AbstractLocation){
         self.backoff = math.min(self.backoffCount*10,1000)
     end,
     GetBuildPosition = function(self, engineer, blueprintID)
-        -- TODO!!
-        local pos = {self.zone.pos[1]+2, self.zone.pos[2], self.zone.pos[3]+2}
-        if not self.brain.aiBrain:CanBuildStructureAt(blueprintID, pos) then
-            return nil
+        local i = 1
+        while i <= SEARCH_GRID_SIZE do
+            local coord = SEARCH_GRID[i]
+            local pos = {self.zone.pos[1]+coord[1], self.zone.pos[2], self.zone.pos[3]+coord[2]}
+            if self.brain.aiBrain:CanBuildStructureAt(blueprintID, pos) then
+                return pos
+            end
+            i = i+1
         end
-        return pos
+        return nil
     end,
     GetCentrePosition = function(self)
         return self.zone.pos

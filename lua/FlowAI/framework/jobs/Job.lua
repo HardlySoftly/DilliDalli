@@ -158,6 +158,7 @@ MobileWorkItem = Class(WorkItem){
                 executor = self.executors[i]
                 lowestBuildpower = buildpower
             end
+            i = i+1
         end
         executor:AddEngineer(engineer)
         local bp = engineer:GetBlueprint()

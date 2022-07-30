@@ -10,7 +10,7 @@ PowerAreaManager = Class({
     Init = function(self, brain, productionID)
         self.brain = brain
         self.job = Job.Job()
-        self.job:Init(productionID, "mobile", Job.PRIORITY.NORMAL, true)
+        self.job:Init(productionID, "mobile", Job.PRIORITY.NORMAL, false)
         self.job:SetCount(LARGE_NUMBER)
         self.workItems = {}
         self.numItems = 0
