@@ -96,20 +96,13 @@ MobileWorkItem = Class(WorkItem){
 
     -- Job distributor interface
     CanStartWith = function(self, engineer)
-        -- Are we already maxed on this job?
-        if self.job.active >= self.job.count then
-            return false
-        end
+        -- Precondition: self.job:CanStartBuild(engineer) has already been checked
         -- Check if the location is free
         if not self.location:IsFree() then
             return false
         end
         -- Is the job pathable?
         if not MAP:UnitCanPathTo(engineer, self.location:GetCentrePosition()) then
-            return false
-        end
-        -- Can this engineer even produce this job?
-        if not CanBuild(engineer, self.job.productionID) then
             return false
         end
         return true
@@ -276,6 +269,12 @@ Job = Class({
     SetCount = function(self, count) self.count = count end,
     GetSpend = function(self) return self.buildpower*self.buildRate end,
     Destroy = function(self) self.keep = false end,
+    CanStartBuild = function(self, builder)
+        return (
+            CanBuild(builder, self.productionID) and
+            (self.job.active < self.job.count)
+        )
+    end,
 
     CheckState = function(self)
         self.buildpower = 0

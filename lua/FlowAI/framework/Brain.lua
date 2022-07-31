@@ -45,10 +45,9 @@ Brain = Class({
         LOG("DilliDalli Brain initialised...")
 
         self.mexes:Init(self)
-        self.mexes:SetBudget(0)
+        self.mexes:SetBudget(20)
         self.pgens:Init(self,"POWER_T1")
         self.pgens:SetBudget(20)
-
     end,
 
     GameStartThread = function(self)
