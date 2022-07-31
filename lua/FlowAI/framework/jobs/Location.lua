@@ -3,10 +3,9 @@ local GetMarkers = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping
 local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
-local SEARCH_GRID = nil
-local SEARCH_GRID_SIZE = -1
+local SEARCH_GRID = {}
+local SEARCH_GRID_SIZE = 0
 local function InitSearchGrid()
-    SEARCH_GRID_SIZE = 0
     local remaining = 2500
     local lim = 2*math.sqrt(remaining)
     local pq = CreatePriorityQueue()
