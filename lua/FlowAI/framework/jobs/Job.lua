@@ -42,7 +42,7 @@ PRIORITY = {
 local PRODUCTION_TRANSLATION = {
     MEX_T1 = { "uab1103", "ueb1103", "urb1103", "xsb1103" },
     MEX_T2 = { "uab1202", "ueb1202", "urb1202", "xsb1202" },
-    MEX_T2 = { "uab1302", "ueb1302", "urb1302", "xsb1302" },
+    MEX_T3 = { "uab1302", "ueb1302", "urb1302", "xsb1302" },
     POWER_T1 = { "uab1101", "ueb1101", "urb1101", "xsb1101" },
     POWER_T2 = { "uab1201", "ueb1201", "urb1201", "xsb1201" },
     POWER_T3 = { "uab1301", "ueb1301", "urb1301", "xsb1301" }
@@ -74,6 +74,14 @@ local function TranslateProductionID(builder, productionID)
     end
 end
 
+GetBlueprintIDs = function(productionID)
+    if PRODUCTION_TRANSLATION[productionID] then
+        return table.copy(PRODUCTION_TRANSLATION[productionID])
+    else
+        return { productionID }
+    end
+end
+
 WorkItem = Class({
     Init = function(self, job)
         self.job = job
@@ -82,6 +90,8 @@ WorkItem = Class({
         self.executors = {}
         self.numExecutors = 0
         self.maxBuildpower = self.job.buildTime/MIN_BUILD_TIME_SECONDS
+        -- For additional custom data from job creators
+        self.custom = {}
     end,
     -- Job owner interface functions
     Destroy = function(self) self.keep = false end,
@@ -91,7 +101,7 @@ WorkItem = Class({
         local i = 1
         while i <= self.numExecutors do
             local executor = self.executors[i]
-            if (not executor.complete) and (executor:GetBuildpower() < self.maxBuildpower) and MAP:UnitCanPathTo(engineer, executor.buildLocation) then
+            if (not executor.complete) and (executor:GetBuildpower() < self.maxBuildpower) and MAP:UnitCanPathTo(engineer, executor:GetPosition()) then
                 return true
             end
             i = i+1
@@ -154,7 +164,7 @@ MobileWorkItem = Class(WorkItem){
         WorkItem.Init(self, job)
         self.location = location
     end,
-    -- Job distributor interface
+    -- Interface functions
     CanStartWith = function(self, engineer)
         -- Precondition: self.job:CanStartBuild(engineer) has already been checked
         -- Check if the location is free
@@ -216,6 +226,69 @@ MobileWorkItem = Class(WorkItem){
     end,
 }
 
+UpgradeWorkItem = Class(WorkItem){
+    Init = function(self, job, structure)
+        WorkItem.Init(self, job)
+        self.structure = structure
+    end,
+    CanStartWith = function(self, structure)
+        -- Precondition: self.job:CanStartBuild(engineer) has already been checked
+        return self.structure == structure
+    end,
+    StartJob = function(self, structure, brain)
+        -- Create executor
+        local bpID = TranslateProductionID(structure, self.job.productionID)
+        local executor = JobExecution.UpgradeJobExecutor()
+        executor:Init(brain, structure, bpID)
+        executor:Run()
+        -- Store executor
+        self.numExecutors = self.numExecutors + 1
+        self.executors[self.numExecutors] = executor
+        -- Update job state
+        self.job.active = self.job.active + 1
+        local bp = structure:GetBlueprint()
+        self.job.buildpower = self.job.buildpower + bp.Economy.BuildRate
+        -- Finish
+        return executor
+    end,
+    GetUtility = function(self, builder)
+        --[[
+            CanStartWith is necessarily true here, or we're dealing with an engineer
+            Cases to handle:
+                A) structure == self.structure
+                B) builder is an engineer looking to assist
+                -- TODO: Support hives / kennels
+        ]]
+        -- Return modified own utility
+        if self.utility <= 0 then
+            return 0
+        elseif self.structure == builder then
+            -- Case A
+            return self.utility
+        end
+        -- Case B
+        -- TODO: Account for risk to builder
+        local bp = builder:GetBlueprint()
+        local maxSpeed = bp.Physics.MaxSpeed
+        if bp.Physics.MotionType == "RULEUMT_Air" then
+            maxSpeed = bp.Air.MaxAirspeed
+        end
+        if maxSpeed <= 0 then
+            maxSpeed = 0.1
+        end
+        local pos = builder.FlowAI.jobData:GetLastPosition()
+        local destination = self.structure:GetPosition()
+        local xDelta = destination[1] - pos[1]
+        local zDelta = destination[3] - pos[3]
+        local distance = math.sqrt(xDelta*xDelta + zDelta*zDelta)
+        local timeToStart = distance/maxSpeed
+        return (
+            self.utility /
+            (1 + math.max(0,(timeToStart-BASE_MOVE_TIME_SECONDS)/UTILITY_HALF_RATE_SECONDS))
+        )
+    end,
+}
+
 Job = Class({
     Init = function(self, productionID, jobType, priority, debugJob)
         if PRODUCTION_GRAPH == nil then
@@ -258,8 +331,7 @@ Job = Class({
             -- TODO: workItem = FactoryWorkItem()
             return nil
         elseif self.jobType == "upgrade" then
-            -- TODO: workItem = UpgradeWorkItem()
-            return nil
+            workItem = UpgradeWorkItem()
         else
             WARN("Unknown job type, unable to add work items: "..tostring(self.jobType))
             return nil
@@ -277,8 +349,8 @@ Job = Class({
     Destroy = function(self) self.keep = false end,
     CanStartBuild = function(self, builder)
         return (
-            CanBuild(builder, self.productionID) and
-            (self.job.active < self.job.count)
+            CanBuild(builder, self.productionID) and 
+            (self.active < self.count)
         )
     end,
 
@@ -303,6 +375,7 @@ Job = Class({
                 "Job Debug: {pri: "..tostring(self.priority)..
                 ", budget: "..tostring(self.budget)..
                 ", buildpower: "..tostring(self.buildpower)..
+                ", spend: "..tostring(self.buildpower*self.buildRate)..
                 ", numWorkItems: "..tostring(self.numWorkItems)..
                 ", count: "..tostring(self.count)..
                 ", active: "..tostring(self.active)..

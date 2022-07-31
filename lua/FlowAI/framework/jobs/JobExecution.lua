@@ -120,6 +120,8 @@ MobileJobExecutor = Class(JobExecutor){
         self.isMobile = true
     end,
 
+    GetPosition = function(self) return self.buildLocation end,
+
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
         -- If main engie is dead, replace it if possible.
@@ -220,6 +222,9 @@ FactoryJobExecutor = Class(JobExecutor){
         self.isFactory = true
     end,
 
+    -- TODO: handle loss of mainBuilder
+    GetPosition = function(self) return self.mainBuilder:GetPosition() end,
+
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
         if (self.numEngies > 0) and ((not self.mainBuilder) or self.mainBuilder.Dead) then
@@ -298,6 +303,9 @@ UpgradeJobExecutor = Class(JobExecutor){
         JobExecutor.Init(self,brain,builder,blueprintID)
         self.isUpgrade = true
     end,
+
+    -- TODO: handle loss of mainBuilder
+    GetPosition = function(self) return self.mainBuilder:GetPosition() end,
 
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()

@@ -29,7 +29,7 @@ local BuilderData = Class({
         if self.jobExecutor.complete then
             self.jobExecutor = nil
         end
-        return self.jobExecutor ~= nil
+        return (self.jobExecutor ~= nil) or (not self.builder.isFinishedUnit)
     end,
     GetLastPosition = function(self)
         -- Return expected position of builder at end of job queue
@@ -115,6 +115,32 @@ JobDistributor = Class({
                 end
                 workLimiter:MaybeWait()
             end
+            i = 1
+            while i <= self.numFactoryJobs do
+                local job = self.factoryJobs[i]
+                if (job == nil) or (not job.keep) then
+                    self.factoryJobs[i] = self.factoryJobs[self.numFactoryJobs]
+                    self.factoryJobs[self.numFactoryJobs] = nil
+                    self.numFactoryJobs = self.numFactoryJobs - 1
+                else
+                    job:CheckState()
+                    i = i+1
+                end
+                workLimiter:MaybeWait()
+            end
+            i = 1
+            while i <= self.numUpgradeJobs do
+                local job = self.upgradeJobs[i]
+                if (job == nil) or (not job.keep) then
+                    self.upgradeJobs[i] = self.upgradeJobs[self.numUpgradeJobs]
+                    self.upgradeJobs[self.numUpgradeJobs] = nil
+                    self.numUpgradeJobs = self.numUpgradeJobs - 1
+                else
+                    job:CheckState()
+                    i = i+1
+                end
+                workLimiter:MaybeWait()
+            end
         end
         workLimiter:End()
     end,
@@ -141,8 +167,10 @@ JobDistributor = Class({
         local engineer = self.newEngineerList:FetchUnit()
         while engineer do
             self:AddEngineer(engineer)
-            self:EngineerFindJob(engineer)
-            workLimiter:MaybeWait()
+            if engineer.isFinishedUnit then
+                self:EngineerFindJob(engineer)
+                workLimiter:MaybeWait()
+            end
             engineer = self.newEngineerList:FetchUnit()
         end
     end,
@@ -169,8 +197,10 @@ JobDistributor = Class({
         local structure = self.newStructureList:FetchUnit()
         while structure do
             self:AddStructure(structure)
-            self:StructureFindJob(structure)
-            workLimiter:MaybeWait()
+            if structure.isFinishedUnit then
+                self:StructureFindJob(structure)
+                workLimiter:MaybeWait()
+            end
             structure = self.newStructureList:FetchUnit()
         end
     end,
@@ -295,7 +325,7 @@ JobDistributor = Class({
             if workItem and workItem.keep then
                 -- Calculate and cache the ability to start / assist first (this is cheaper than running GetUtility)
                 if workItem:CanStartWith(structure) then
-                    local utility = workItem:GetUtility(engineer)*budgetScalar
+                    local utility = workItem:GetUtility(structure)*budgetScalar
                     if utility > candidate.utility then
                         candidate.workItem = workItem
                         candidate.utility = utility
