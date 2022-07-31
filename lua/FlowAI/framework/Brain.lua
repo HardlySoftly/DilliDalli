@@ -7,6 +7,7 @@ local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').
 
 local MassMarkerManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/MarkerManagement.lua').MassMarkerManager
 local PowerAreaManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/AreaManagement.lua').PowerAreaManager
+local MassUpgradeManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/UpgradeManagement.lua').MassUpgradeManager
 
 Brain = Class({
     Init = function(self,aiBrain)
@@ -34,6 +35,7 @@ Brain = Class({
 
         self.mexes = MassMarkerManager()
         self.pgens = PowerAreaManager()
+        self.upgrades = MassUpgradeManager()
     end,
 
     InitialiseComponents = function(self)
@@ -48,6 +50,8 @@ Brain = Class({
         self.mexes:SetBudget(20)
         self.pgens:Init(self,"POWER_T1")
         self.pgens:SetBudget(20)
+        self.upgrades:Init(self,"MEX_T1","MEX_T2")
+        self.upgrades:SetBudget(20)
     end,
 
     GameStartThread = function(self)
@@ -59,6 +63,7 @@ Brain = Class({
         self.monitoring:Run()
         self.mexes:Run()
         self.pgens:Run()
+        self.upgrades:Run()
         self.locationManager:Run()
         WaitSeconds(4)
         -- Start the game!
