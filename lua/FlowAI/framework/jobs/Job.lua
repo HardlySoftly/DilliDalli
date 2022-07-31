@@ -86,6 +86,67 @@ WorkItem = Class({
     -- Job owner interface functions
     Destroy = function(self) self.keep = false end,
     SetUtility = function(self, utility) self.utility = utility end,
+    KeepItem = function(self) return self.keep or (self.numExecutors > 0) end,
+    CanAssistWith = function(self, engineer)
+        local i = 1
+        while i <= self.numExecutors do
+            local executor = self.executors[i]
+            if (not executor.complete) and (executor:GetBuildpower() < self.maxBuildpower) and MAP:UnitCanPathTo(engineer, executor.buildLocation) then
+                return true
+            end
+            i = i+1
+        end
+        return false
+    end,
+    AssistJob = function(self, engineer)
+        -- Precondition: you must have first called self:CanAssistWith(engineer)
+        local executor = self.executors[1]
+        local lowestBuildpower = executor:GetBuildpower()
+        local i = 2
+        while i <= self.numExecutors do
+            local buildpower = self.executors[i]:GetBuildpower()
+            if buildpower < lowestBuildpower then
+                executor = self.executors[i]
+                lowestBuildpower = buildpower
+            end
+            i = i+1
+        end
+        executor:AddEngineer(engineer)
+        local bp = engineer:GetBlueprint()
+        self.job.buildpower = self.job.buildpower + bp.Economy.BuildRate
+        return executor
+    end,
+    CheckState = function(self)
+        local i = 1
+        while i <= self.numExecutors do
+            if self.executors[i].complete then
+                if self.executors[i].success then
+                    self.job.count = self.job.count - 1
+                end
+                self.executors[i]:CompleteJob()
+                self.executors[i] = self.executors[self.numExecutors]
+                self.executors[self.numExecutors] = nil
+                self.numExecutors = self.numExecutors - 1
+                self.job.active = self.job.active - 1
+            else
+                i = i+1
+            end
+        end
+    end,
+    GetBuildpower = function(self)
+        -- Return a normalised buildpower rate for this work item
+        local buildpower = 0
+        local i = 1
+        while i <= self.numExecutors do
+            buildpower = buildpower + self.executors[i]:GetBuildpower()
+            i = i+1
+        end
+        return buildpower
+    end,
+    -- Interface functions that must be implemented by subclasses
+    CanStartWith = function(self, builder) WARN("'CanStartWith' Not implemented!") end,
+    StartJob = function(self, builder, brain) WARN("'StartJob' Not implemented!") end,
+    GetUtility = function(self, builder) WARN("'GetUtility' Not implemented!") end,
 })
 
 MobileWorkItem = Class(WorkItem){
@@ -93,7 +154,6 @@ MobileWorkItem = Class(WorkItem){
         WorkItem.Init(self, job)
         self.location = location
     end,
-
     -- Job distributor interface
     CanStartWith = function(self, engineer)
         -- Precondition: self.job:CanStartBuild(engineer) has already been checked
@@ -106,17 +166,6 @@ MobileWorkItem = Class(WorkItem){
             return false
         end
         return true
-    end,
-    CanAssistWith = function(self, engineer)
-        local i = 1
-        while i <= self.numExecutors do
-            local executor = self.executors[i]
-            if (not executor.complete) and (executor:GetBuildpower() < self.maxBuildpower) and MAP:UnitCanPathTo(engineer, executor.buildLocation) then
-                return true
-            end
-            i = i+1
-        end
-        return false
     end,
     StartJob = function(self, engineer, brain)
         -- Create executor
@@ -138,24 +187,6 @@ MobileWorkItem = Class(WorkItem){
         self.job.buildpower = self.job.buildpower + bp.Economy.BuildRate
         self.location:StartBuild(executor, buildLocation)
         -- Finish
-        return executor
-    end,
-    AssistJob = function(self, engineer)
-        -- Precondition: you must have first called self:CanAssistWith(engineer)
-        local executor = self.executors[1]
-        local lowestBuildpower = executor:GetBuildpower()
-        local i = 2
-        while i <= self.numExecutors do
-            local buildpower = self.executors[i]:GetBuildpower()
-            if buildpower < lowestBuildpower then
-                executor = self.executors[i]
-                lowestBuildpower = buildpower
-            end
-            i = i+1
-        end
-        executor:AddEngineer(engineer)
-        local bp = engineer:GetBlueprint()
-        self.job.buildpower = self.job.buildpower + bp.Economy.BuildRate
         return executor
     end,
     GetUtility = function(self, engineer)
@@ -182,36 +213,6 @@ MobileWorkItem = Class(WorkItem){
             self.utility /
             (1 + math.max(0,(timeToStart-BASE_MOVE_TIME_SECONDS)/UTILITY_HALF_RATE_SECONDS))
         )
-    end,
-    GetBuildpower = function(self)
-        -- Return a normalised buildpower rate for this work item
-        local buildpower = 0
-        local i = 1
-        while i <= self.numExecutors do
-            buildpower = buildpower + self.executors[i]:GetBuildpower()
-            i = i+1
-        end
-        return buildpower
-    end,
-    CheckState = function(self)
-        local i = 1
-        while i <= self.numExecutors do
-            if self.executors[i].complete then
-                if self.executors[i].success then
-                    self.job.count = self.job.count - 1
-                end
-                self.executors[i]:CompleteJob()
-                self.executors[i] = self.executors[self.numExecutors]
-                self.executors[self.numExecutors] = nil
-                self.numExecutors = self.numExecutors - 1
-                self.job.active = self.job.active - 1
-            else
-                i = i+1
-            end
-        end
-    end,
-    IsActive = function(self)
-        return self.keep or (self.numExecutors > 0)
     end,
 }
 
@@ -254,9 +255,14 @@ Job = Class({
         if self.jobType == "mobile" then
             workItem = MobileWorkItem()
         elseif self.jobType == "factory" then
-            --TODO: workItem = FactoryWorkItem()
+            -- TODO: workItem = FactoryWorkItem()
+            return nil
+        elseif self.jobType == "upgrade" then
+            -- TODO: workItem = UpgradeWorkItem()
+            return nil
         else
-            --TODO: workItem = UpgradeWorkItem()
+            WARN("Unknown job type, unable to add work items: "..tostring(self.jobType))
+            return nil
         end
         workItem:Init(self, item)
         self.numWorkItems = self.numWorkItems + 1
@@ -282,7 +288,7 @@ Job = Class({
         while i <= self.numWorkItems do
             local workItem = self.workItems[i]
             workItem:CheckState()
-            if not workItem:IsActive() then
+            if not workItem:KeepItem() then
                 self.workItems[i] = self.workItems[self.numWorkItems]
                 self.workItems[self.numWorkItems] = nil
                 self.numWorkItems = self.numWorkItems - 1
