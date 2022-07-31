@@ -30,7 +30,6 @@ JobExecutor = Class({
         self.subsidiaryEngies = {}
         self.buildRates = {}
         self.numEngies = 1
-
         -- Assigned buildpower
         self.buildpower = self.builderRate
 
@@ -38,6 +37,9 @@ JobExecutor = Class({
         self.isMobile = false
         self.isFactory = false
         self.isUpgrade = false
+
+        -- Make sure the builder is ready to go
+        self.commandInterface:IssueStop({self.mainBuilder})
     end,
 
     AddEngineer = function(self,assister)
