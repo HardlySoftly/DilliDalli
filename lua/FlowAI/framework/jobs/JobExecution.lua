@@ -219,11 +219,11 @@ MobileJobExecutor = Class(JobExecutor){
 FactoryJobExecutor = Class(JobExecutor){
     Init = function(self,brain,builder,blueprintID)
         JobExecutor.Init(self,brain,builder,blueprintID)
+        self.pos = table.copy(builder:GetPosition())
         self.isFactory = true
     end,
 
-    -- TODO: handle loss of mainBuilder
-    GetPosition = function(self) return self.mainBuilder:GetPosition() end,
+    GetPosition = function(self) return self.pos end,
 
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
@@ -301,11 +301,11 @@ FactoryJobExecutor = Class(JobExecutor){
 UpgradeJobExecutor = Class(JobExecutor){
     Init = function(self,brain,builder,blueprintID)
         JobExecutor.Init(self,brain,builder,blueprintID)
+        self.pos = table.copy(builder:GetPosition())
         self.isUpgrade = true
     end,
 
-    -- TODO: handle loss of mainBuilder
-    GetPosition = function(self) return self.mainBuilder:GetPosition() end,
+    GetPosition = function(self) return self.pos end,
 
     ClearDeadBuilders = function(self)
         self:ClearDeadAssisters()
