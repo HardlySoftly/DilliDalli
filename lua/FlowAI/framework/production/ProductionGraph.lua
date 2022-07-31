@@ -30,11 +30,12 @@ local function HasAllCategories(unitCategories, checkCategories)
     return true
 end
 
-local function CanMake(bp0,bp1)
+local function CanMake(bp0, bp1, bpID1)
+    -- bp0 CanMake bp1?
     local i = 0
     while i < table.getn(bp0.Economy.BuildableCategory) do
         i = i+1
-        if HasAllCategories(bp1.Categories,STR_GetTokens(bp0.Economy.BuildableCategory[i]," ")) then
+        if (bpID1 == bp0.Economy.BuildableCategory[i]) or HasAllCategories(bp1.Categories,STR_GetTokens(bp0.Economy.BuildableCategory[i]," ")) then
             return true
         end
     end
@@ -133,7 +134,7 @@ function LoadProductionGraph()
         end
         for k1, _ in PRODUCTION_GRAPH do
             local bp1 = PRODUCTION_GRAPH[k1].bp
-            if CanMake(bp0,bp1) then
+            if CanMake(bp0,bp1,k1) then
                 PRODUCTION_GRAPH[k0].buildsN = PRODUCTION_GRAPH[k0].buildsN + 1
                 PRODUCTION_GRAPH[k0].builds[PRODUCTION_GRAPH[k0].buildsN] = k1
                 PRODUCTION_GRAPH[k1].builtByN = PRODUCTION_GRAPH[k1].builtByN + 1
