@@ -1,4 +1,4 @@
-local WORK_RATE = 50
+local WORK_RATE = 30
 
 local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 
@@ -36,16 +36,27 @@ UnitMonitoring = Class({
     Init = function(self,brain)
         self.brain = brain
         self.registrations = {}
+        self.units = {}
     end,
 
-    MonitoringThread = function(self)
-        local workLimiter = CreateWorkLimiter(WORK_RATE,"UnitMonitoring:MonitoringThread")
+    AddUnit = function(self, unit)
+        local bpID = unit.UnitId
+        if not self.units[bpID] then
+            self.units[bpID] = { num = 0, units = {} }
+        end
+        self.units[bpID].num = self.units[bpID].num + 1
+        self.units[bpID].units[self.units[bpID].num] = unit
+    end,
+
+    FindingThread = function(self)
+        local workLimiter = CreateWorkLimiter(WORK_RATE,"UnitMonitoring:FindingThread")
         while self.brain:IsAlive() and workLimiter:Wait() do
             local allUnits = self.brain.aiBrain:GetListOfUnits(categories.ALLUNITS,false,true)
             workLimiter:Wait()
             for i, unit in allUnits do
                 workLimiter:MaybeWait()
                 if unit and (not unit.Dead) and (not unit.FlowAI) then
+                    self:AddUnit(unit)
                     unit.FlowAI = {}
                     local bpID = unit.UnitId
                     if self.registrations[bpID] then
@@ -62,6 +73,26 @@ UnitMonitoring = Class({
         workLimiter:End()
     end,
 
+    MonitoringThread = function(self)
+        local workLimiter = CreateWorkLimiter(WORK_RATE,"UnitMonitoring:MonitoringThread")
+        while self.brain:IsAlive() and workLimiter:Wait() do
+            for bpID, item in self.units do
+                local i = 1
+                while i <= item.num do
+                    if (not item.units[i]) or item.units[i].Dead then
+                        item.units[i] = item.units[item.num]
+                        item.units[item.num] = nil
+                        item.num = item.num - 1
+                    else
+                        i = i+1
+                    end
+                    workLimiter:MaybeWait()
+                end
+            end
+        end
+        workLimiter:End()
+    end,
+
     RegisterInterest = function(self, blueprintID, unitList)
         if not self.registrations[blueprintID] then
             self.registrations[blueprintID] = { count = 0, lists = {} }
@@ -71,6 +102,7 @@ UnitMonitoring = Class({
     end,
 
     Run = function(self)
+        self.brain:ForkThread(self, self.FindingThread)
         self.brain:ForkThread(self, self.MonitoringThread)
     end,
 })
