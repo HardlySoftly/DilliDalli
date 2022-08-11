@@ -11,7 +11,7 @@ MassUpgradeManager = Class({
     Init = function(self, brain, productionID, upgradeID)
         self.brain = brain
         self.job = Job.Job()
-        self.job:Init(upgradeID, "upgrade", Job.PRIORITY.NORMAL, true)
+        self.job:Init(upgradeID, "upgrade", Job.PRIORITY.NORMAL, false)
         self.job:SetCount(LARGE_NUMBER)
         self.marginalEnergyCost = 20/75
         self.workItems = {}

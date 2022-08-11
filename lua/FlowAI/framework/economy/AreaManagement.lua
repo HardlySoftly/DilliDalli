@@ -38,7 +38,6 @@ PowerAreaManager = Class({
                 local workItem = self.workItems[i]
                 if workItem.location:IsFree() then
                     local utility = Utility.GetEnergyUtility(energyProduction, massCost, workItem.location.safety)
-                    --_ALERT(utility)
                     workItem:SetUtility(utility)
                     -- TODO: accumulate spend / max spend stats?
                 else
