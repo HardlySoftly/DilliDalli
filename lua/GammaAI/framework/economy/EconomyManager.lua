@@ -1,6 +1,6 @@
-local MassMarkerManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/MarkerManagement.lua').MassMarkerManager
-local PowerAreaManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/AreaManagement.lua').PowerAreaManager
-local MassUpgradeManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/UpgradeManagement.lua').MassUpgradeManager
+local MassMarkerManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/MarkerManagement.lua').MassMarkerManager
+local PowerAreaManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/AreaManagement.lua').PowerAreaManager
+local MassUpgradeManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/UpgradeManagement.lua').MassUpgradeManager
 
 EconomyManager = Class({
     Init = function(self, brain)

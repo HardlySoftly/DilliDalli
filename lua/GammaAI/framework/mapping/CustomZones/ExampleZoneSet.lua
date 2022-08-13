@@ -1,10 +1,10 @@
--- This file is an example of how you can add custom zones to the FlowAI mapping framework.
+-- This file is an example of how you can add custom zones to the GammaAI mapping framework.
 -- First import this class
-local ZoneSet = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Zones.lua').ZoneSet
+local ZoneSet = import('/mods/DilliDalli/lua/GammaAI/framework/mapping/Zones.lua').ZoneSet
 
 -- We'll use these too later
-local GetMarkers = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMarkers
-local MAP = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMap()
+local GetMarkers = import("/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua").GetMarkers
+local MAP = import("/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua").GetMap()
 
 -- Now create a subclass of 'ZoneSet', non-destructively hooking 'Init' and implementing the 'GenerateZoneList' function.
 -- You can create as many classes as you like here.
@@ -46,7 +46,7 @@ function GetZoneSetClasses()
 end
 
 --[[
-    Awesome, we've implemented and added a new set of Zones to the FlowAI mappign framework!  What
+    Awesome, we've implemented and added a new set of Zones to the GammaAI mapping framework!  What
     you'll want to do now is load these into your AI so you can make use of them.
 
     In order to avoid problems with different AIs changing data in the same zone tables, the

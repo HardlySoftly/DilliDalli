@@ -4,8 +4,8 @@
     They must handle the addition of new engineers, and provide best efforts to complete jobs despite destruction of assigned builders.
 ]]
 
-local CheckForEnemyStructure = import('/mods/DilliDalli/lua/FlowAI/framework/Intel.lua').CheckForEnemyStructure
-local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+local CheckForEnemyStructure = import('/mods/DilliDalli/lua/GammaAI/framework/Intel.lua').CheckForEnemyStructure
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/GammaAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 
 local BUILDPOWER_MODIFIER = 0.5
 
@@ -237,10 +237,10 @@ FactoryJobExecutor = Class(JobExecutor){
 
     CheckTarget = function(self)
         -- Try to update self.target.
-        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.FlowAI.jobData.previousBuilt) then
+        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.GammaAI.jobData.previousBuilt) then
             self.target = self.mainBuilder.UnitBeingBuilt
             -- Cache this, because it doesn't update until a new unit starts (which is effing annoying)
-            self.mainBuilder.FlowAI.jobData.previousBuilt = self.mainBuilder.UnitBeingBuilt
+            self.mainBuilder.GammaAI.jobData.previousBuilt = self.mainBuilder.UnitBeingBuilt
             self.started = true
         end
         -- If target destroyed then complete with failure
@@ -319,10 +319,10 @@ UpgradeJobExecutor = Class(JobExecutor){
 
     CheckTarget = function(self)
         -- Try to update self.target.
-        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.FlowAI.jobData.previousBuilt) then
+        if (not self.target) and (self.mainBuilder.UnitBeingBuilt ~= self.mainBuilder.GammaAI.jobData.previousBuilt) then
             self.target = self.mainBuilder.UnitBeingBuilt
             -- Cache this, because it doesn't update until a new unit starts (which is effing annoying)
-            self.mainBuilder.FlowAI.jobData.previousBuilt = self.mainBuilder.UnitBeingBuilt
+            self.mainBuilder.GammaAI.jobData.previousBuilt = self.mainBuilder.UnitBeingBuilt
             self.started = true
         end
         -- If target destroyed then complete with failure

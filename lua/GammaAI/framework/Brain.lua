@@ -1,10 +1,10 @@
-local CreateCommandInterface = import('/mods/DilliDalli/lua/FlowAI/framework/CommandInterface.lua').CreateCommandInterface
-local JobDistributor = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/JobDistribution.lua').JobDistributor
-local Monitoring = import('/mods/DilliDalli/lua/FlowAI/framework/Monitoring.lua')
-local LocationManager = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Location.lua').LocationManager
-local EconomyManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/EconomyManager.lua').EconomyManager
+local CreateCommandInterface = import('/mods/DilliDalli/lua/GammaAI/framework/CommandInterface.lua').CreateCommandInterface
+local JobDistributor = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/JobDistribution.lua').JobDistributor
+local Monitoring = import('/mods/DilliDalli/lua/GammaAI/framework/Monitoring.lua')
+local LocationManager = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/Location.lua').LocationManager
+local EconomyManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/EconomyManager.lua').EconomyManager
 
-local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMap()
+local MAP = import('/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua').GetMap()
 
 
 Brain = Class({

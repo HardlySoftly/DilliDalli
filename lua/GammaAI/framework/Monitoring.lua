@@ -1,6 +1,6 @@
 local WORK_RATE = 30
 
-local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/GammaAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 
 UnitList = Class({
     Init = function(self)
@@ -55,9 +55,9 @@ UnitMonitoring = Class({
             workLimiter:Wait()
             for i, unit in allUnits do
                 workLimiter:MaybeWait()
-                if unit and (not unit.Dead) and (not unit.FlowAI) then
+                if unit and (not unit.Dead) and (not unit.GammaAI) then
                     self:AddUnit(unit)
-                    unit.FlowAI = {}
+                    unit.GammaAI = {}
                     local bpID = unit.UnitId
                     if self.registrations[bpID] then
                         local j = 1

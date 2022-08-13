@@ -1,4 +1,4 @@
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/GammaAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
 --[[
     A table containing all the markers that are actually created.
@@ -270,13 +270,13 @@ local ConnectivityCheckingFunctions = {
 
 GameMap = Class({
     InitMap = function(self)
-        LOG('FlowAI framework: CreateMapMarkers() started!')
+        LOG('GammaAI framework: CreateMapMarkers() started!')
         local START = GetSystemTimeSecondsOnlyForProfileUse()
         self:CreateMapMarkers()
         self.zoneSets = {}
         self.numZoneSets = 0
         local END = GetSystemTimeSecondsOnlyForProfileUse()
-        LOG(string.format('FlowAI framework: CreateMapMarkers() finished, runtime: %.2f seconds.', END - START ))
+        LOG(string.format('GammaAI framework: CreateMapMarkers() finished, runtime: %.2f seconds.', END - START ))
         local drawStuffz = false
         if drawStuffz then
             ForkThread(
@@ -839,15 +839,15 @@ function BeginSession()
     map:InitMap()
     -- Now to attempt to load any custom zone set classes
     local START = GetSystemTimeSecondsOnlyForProfileUse()
-    local customZoneSets = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Zones.lua').LoadCustomZoneSets()
+    local customZoneSets = import('/mods/DilliDalli/lua/GammaAI/framework/mapping/Zones.lua').LoadCustomZoneSets()
     if table.getn(customZoneSets) > 0 then
         for _, ZoneSetClass in customZoneSets do
             map:AddZoneSet(ZoneSetClass)
         end
         local END = GetSystemTimeSecondsOnlyForProfileUse()
-        LOG(string.format('FlowAI framework: Custom zone generation finished (%d found), runtime: %.2f seconds.', table.getn(customZoneSets), END - START ))
+        LOG(string.format('GammaAI framework: Custom zone generation finished (%d found), runtime: %.2f seconds.', table.getn(customZoneSets), END - START ))
     else
-        LOG("FlowAI framework: No custom zoning classes found.")
+        LOG("GammaAI framework: No custom zoning classes found.")
     end
 end
 

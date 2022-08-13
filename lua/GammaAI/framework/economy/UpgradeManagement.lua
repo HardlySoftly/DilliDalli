@@ -1,9 +1,9 @@
 local WORK_RATE = 10
 
-local Job = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Job.lua')
-local Utility = import('/mods/DilliDalli/lua/FlowAI/framework/economy/Utility.lua')
-local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
-local CreateUnitList = import('/mods/DilliDalli/lua/FlowAI/framework/Monitoring.lua').CreateUnitList
+local Job = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/Job.lua')
+local Utility = import('/mods/DilliDalli/lua/GammaAI/framework/economy/Utility.lua')
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/GammaAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+local CreateUnitList = import('/mods/DilliDalli/lua/GammaAI/framework/Monitoring.lua').CreateUnitList
 
 local LARGE_NUMBER = 1000000000
 

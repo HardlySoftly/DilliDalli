@@ -13,10 +13,10 @@
     PS: There's poor separation of concerns right now between these classes and the JobDistributor implentation, so bear in mind if you start changing things here."
 ]]
 
-local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMap()
-local GetProductionGraph = import('/mods/DilliDalli/lua/FlowAI/framework/production/ProductionGraph.lua').GetProductionGraph
+local MAP = import('/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua').GetMap()
+local GetProductionGraph = import('/mods/DilliDalli/lua/GammaAI/framework/production/ProductionGraph.lua').GetProductionGraph
 
-local JobExecution = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/JobExecution.lua')
+local JobExecution = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/JobExecution.lua')
 
 -- Don't add buildpower if the buildtime will drop below this
 local MIN_BUILD_TIME_SECONDS = 15
@@ -213,7 +213,7 @@ MobileWorkItem = Class(WorkItem){
         if maxSpeed <= 0 then
             maxSpeed = 0.1
         end
-        local pos = engineer.FlowAI.jobData:GetLastPosition()
+        local pos = engineer.GammaAI.jobData:GetLastPosition()
         local destination = self.location:GetCentrePosition()
         local xDelta = destination[1] - pos[1]
         local zDelta = destination[3] - pos[3]
@@ -276,7 +276,7 @@ UpgradeWorkItem = Class(WorkItem){
         if maxSpeed <= 0 then
             maxSpeed = 0.1
         end
-        local pos = builder.FlowAI.jobData:GetLastPosition()
+        local pos = builder.GammaAI.jobData:GetLastPosition()
         local destination = self.structure:GetPosition()
         local xDelta = destination[1] - pos[1]
         local zDelta = destination[3] - pos[3]

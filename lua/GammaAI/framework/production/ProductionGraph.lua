@@ -1,4 +1,4 @@
-local MAP = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMap()
+local MAP = import("/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua").GetMap()
 
 local PRODUCTION_GRAPH = nil
 local ENGIE_MOD_FLAG = false
@@ -144,7 +144,7 @@ function LoadProductionGraph()
         end
     end
     local END = GetSystemTimeSecondsOnlyForProfileUse()
-    LOG(string.format('FlowAI framework: Production graph loading finished (%d units, %d edges), runtime: %.2f seconds.', n, ne, END - START ))
+    LOG(string.format('GammaAI framework: Production graph loading finished (%d units, %d edges), runtime: %.2f seconds.', n, ne, END - START ))
 end
 
 function GetProductionGraph()

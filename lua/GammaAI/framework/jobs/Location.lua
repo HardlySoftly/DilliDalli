@@ -1,7 +1,7 @@
 local WORK_RATE = 10
-local GetMarkers = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMarkers
-local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
+local GetMarkers = import('/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua').GetMarkers
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/GammaAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/GammaAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
 local SEARCH_GRID = {}
 local SEARCH_GRID_SIZE = 0

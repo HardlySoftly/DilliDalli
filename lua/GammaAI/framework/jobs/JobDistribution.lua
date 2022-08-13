@@ -3,10 +3,10 @@
     We also include helper classes to manage the associated state that gets attached to builders.
 ]]
 
-local CreateUnitList = import('/mods/DilliDalli/lua/FlowAI/framework/Monitoring.lua').CreateUnitList
-local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
-local GetProductionGraph = import('/mods/DilliDalli/lua/FlowAI/framework/production/ProductionGraph.lua').GetProductionGraph
-local PRIORITY = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Job.lua').PRIORITY
+local CreateUnitList = import('/mods/DilliDalli/lua/GammaAI/framework/Monitoring.lua').CreateUnitList
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/GammaAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+local GetProductionGraph = import('/mods/DilliDalli/lua/GammaAI/framework/production/ProductionGraph.lua').GetProductionGraph
+local PRIORITY = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/Job.lua').PRIORITY
 
 local WORK_RATE = 10
 
@@ -88,15 +88,15 @@ JobDistributor = Class({
     AddEngineer = function(self, engineer)
         self.numEngineers = self.numEngineers + 1
         self.engineers[self.numEngineers] = engineer
-        engineer.FlowAI.jobData = EngineerData()
-        engineer.FlowAI.jobData:Init(engineer)
+        engineer.GammaAI.jobData = EngineerData()
+        engineer.GammaAI.jobData:Init(engineer)
     end,
 
     AddStructure = function(self, structure)
         self.numStructures = self.numStructures + 1
         self.structures[self.numStructures] = structure
-        structure.FlowAI.jobData = BuilderData()
-        structure.FlowAI.jobData:Init(structure)
+        structure.GammaAI.jobData = BuilderData()
+        structure.GammaAI.jobData:Init(structure)
     end,
 
     JobMonitoringThread = function(self)
@@ -155,7 +155,7 @@ JobDistributor = Class({
                 self.engineers[self.numEngineers] = nil
                 self.numEngineers = self.numEngineers - 1
             else
-                if not engineer.FlowAI.jobData:IsBusy() then
+                if not engineer.GammaAI.jobData:IsBusy() then
                     -- Assign job
                     self:EngineerFindJob(engineer)
                     workLimiter:MaybeWait()
@@ -185,7 +185,7 @@ JobDistributor = Class({
                 self.structures[self.numStructures] = nil
                 self.numStructures = self.numStructures - 1
             else
-                if not structure.FlowAI.jobData:IsBusy() then
+                if not structure.GammaAI.jobData:IsBusy() then
                     -- Assign job
                     self:StructureFindJob(structure)
                     workLimiter:MaybeWait()
@@ -216,12 +216,12 @@ JobDistributor = Class({
 
     StartJob = function(self, engineer, workItem)
         local executor = workItem:StartJob(engineer, self.brain)
-        engineer.FlowAI.jobData:SetExecutor(executor, false)
+        engineer.GammaAI.jobData:SetExecutor(executor, false)
     end,
 
     AssistJob = function(self, engineer, workItem)
         local executor = workItem:AssistJob(engineer)
-        engineer.FlowAI.jobData:SetExecutor(executor, true)
+        engineer.GammaAI.jobData:SetExecutor(executor, true)
     end,
 
     EngineerFindJob = function(self, engineer)

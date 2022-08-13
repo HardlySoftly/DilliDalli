@@ -1,21 +1,20 @@
 local WORK_RATE = 10
 
-local Job = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Job.lua')
-local Utility = import('/mods/DilliDalli/lua/FlowAI/framework/economy/Utility.lua')
-local CreateWorkLimiter = import('/mods/DilliDalli/lua/FlowAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+local Job = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/Job.lua')
+local Utility = import('/mods/DilliDalli/lua/GammaAI/framework/economy/Utility.lua')
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/GammaAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 
-local LARGE_NUMBER = 1000000000
+LARGE_NUMBER = 1000000000
 
-MassMarkerManager = Class({
-    Init = function(self, brain)
+PowerAreaManager = Class({
+    Init = function(self, brain, productionID)
         self.brain = brain
         self.job = Job.Job()
-        self.job:Init("MEX_T1", "mobile", Job.PRIORITY.NORMAL, false)
+        self.job:Init(productionID, "mobile", Job.PRIORITY.NORMAL, false)
         self.job:SetCount(LARGE_NUMBER)
-        self.marginalEnergyCost = 20/75
         self.workItems = {}
         self.numItems = 0
-        local locations = self.brain.locationManager:GetLocations("Mass")
+        local locations = self.brain.locationManager:GetLocations("Zone-1")
         for _, location in locations do
             local workItem = self.job:AddWorkItem(location)
             self.numItems = self.numItems + 1
@@ -24,11 +23,10 @@ MassMarkerManager = Class({
         self.brain.jobDistributor:AddJob(self.job)
     end,
 
-    MarkerMonitoringThread = function(self)
-        local workLimiter = CreateWorkLimiter(WORK_RATE,"MassMarkerManager:MarkerMonitoringThread")
-        local massProduction = self.job.bp.Economy.ProductionPerSecondMass or 0
+    MonitoringThread = function(self)
+        local workLimiter = CreateWorkLimiter(WORK_RATE,"PowerAreaManager:MonitoringThread")
+        local energyProduction = self.job.bp.Economy.ProductionPerSecondEnergy or 0
         local massCost = self.job.bp.Economy.BuildCostMass or LARGE_NUMBER
-        local energyMaintenance = self.job.bp.Economy.MaintenanceConsumptionPerSecondEnergy or LARGE_NUMBER
         while self.brain:IsAlive() and workLimiter:Wait() do
             --[[
                 For each WorkItem in self.workItems, do the following:
@@ -39,7 +37,8 @@ MassMarkerManager = Class({
             while i <= self.numItems do
                 local workItem = self.workItems[i]
                 if workItem.location:IsFree() then
-                    workItem:SetUtility(Utility.GetMassUtility(massProduction, massCost, energyMaintenance, self.marginalEnergyCost, workItem.location.safety))
+                    local utility = Utility.GetEnergyUtility(energyProduction, massCost, workItem.location.safety)
+                    workItem:SetUtility(utility)
                     -- TODO: accumulate spend / max spend stats?
                 else
                     workItem:SetUtility(0)
@@ -51,14 +50,10 @@ MassMarkerManager = Class({
         workLimiter:End()
     end,
 
-    SetMarginalEnergyCost = function(self, marginalEnergyCost) self.marginalEnergyCost = marginalEnergyCost end,
     SetBudget = function(self, budget) self.job:SetBudget(budget) end,
     GetSpend = function(self) return self.job:GetSpend() end,
-    GetMaxSpend = function(self)
-        -- TODO: Check number of free locations, and update based on that
-    end,
 
     Run = function(self)
-        self.brain:ForkThread(self, self.MarkerMonitoringThread)
+        self.brain:ForkThread(self, self.MonitoringThread)
     end,
 })

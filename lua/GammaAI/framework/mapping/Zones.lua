@@ -1,6 +1,6 @@
-local GetMarkers = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMarkers
-local MAP = import("/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua").GetMap()
-local CreatePriorityQueue = import('/mods/DilliDalli/lua/FlowAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
+local GetMarkers = import("/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua").GetMarkers
+local MAP = import("/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua").GetMap()
+local CreatePriorityQueue = import('/mods/DilliDalli/lua/GammaAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
 ZoneSet = Class({
     Init = function(self,zoneIndex)
@@ -132,8 +132,8 @@ function LoadCustomZoneSets()
     local res = {}
     local simMods = __active_mods or {}
     --for _, ModData in simMods do
-    --local customZoneSetFiles = DiskFindFiles(ModData.location..'/lua/FlowAI/framework/mapping/CustomZones', '*.lua')
-    local customZoneSetFiles = DiskFindFiles('/mods/DilliDalli/lua/FlowAI/framework/mapping/CustomZones', '*.lua')
+    --local customZoneSetFiles = DiskFindFiles(ModData.location..'/lua/GammaAI/framework/mapping/CustomZones', '*.lua')
+    local customZoneSetFiles = DiskFindFiles('/mods/DilliDalli/lua/GammaAI/framework/mapping/CustomZones', '*.lua')
     for _, file in customZoneSetFiles do
         local GetZoneSetClasses = import(file).GetZoneSetClasses
         if GetZoneSetClasses then

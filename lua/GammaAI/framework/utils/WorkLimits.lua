@@ -2,7 +2,7 @@
     In this file, we implement a helper class for doing easy limiting of work volumes, as well as adding in code profiling for free.
 ]]
 
-local PROFILER = import('/mods/DilliDalli/lua/FlowAI/framework/utils/Profiler.lua').GetProfiler()
+local PROFILER = import('/mods/DilliDalli/lua/GammaAI/framework/utils/Profiler.lua').GetProfiler()
 
 WorkLimiter = Class({
     Init = function(self,workRate,profilingKey)
