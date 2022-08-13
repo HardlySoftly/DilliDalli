@@ -1,13 +1,11 @@
-local CommandInterface = import('/mods/DilliDalli/lua/FlowAI/framework/CommandInterface.lua').CommandInterface
+local CreateCommandInterface = import('/mods/DilliDalli/lua/FlowAI/framework/CommandInterface.lua').CreateCommandInterface
 local JobDistributor = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/JobDistribution.lua').JobDistributor
 local Monitoring = import('/mods/DilliDalli/lua/FlowAI/framework/Monitoring.lua')
 local LocationManager = import('/mods/DilliDalli/lua/FlowAI/framework/jobs/Location.lua').LocationManager
+local EconomyManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/EconomyManager.lua').EconomyManager
 
 local MAP = import('/mods/DilliDalli/lua/FlowAI/framework/mapping/Mapping.lua').GetMap()
 
-local MassMarkerManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/MarkerManagement.lua').MassMarkerManager
-local PowerAreaManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/AreaManagement.lua').PowerAreaManager
-local MassUpgradeManager = import('/mods/DilliDalli/lua/FlowAI/framework/economy/UpgradeManagement.lua').MassUpgradeManager
 
 Brain = Class({
     Init = function(self,aiBrain)
@@ -27,15 +25,13 @@ Brain = Class({
         -- For identifying units as they are built / donated
         self.monitoring = Monitoring.UnitMonitoring()
         -- For monitoring and executing all commands going from the AI to the Sim
-        self.commandInterface = CommandInterface()
+        self.commandInterface = CreateCommandInterface()
         -- For handling job Location instances
         self.locationManager = LocationManager()
         -- For distributing jobs
         self.jobDistributor = JobDistributor()
-
-        self.mexes = MassMarkerManager()
-        self.pgens = PowerAreaManager()
-        self.upgrades = MassUpgradeManager()
+        -- For handling mass/energy
+        self.economy = EconomyManager()
     end,
 
     InitialiseComponents = function(self)
@@ -46,12 +42,8 @@ Brain = Class({
         self.jobDistributor:Init(self)
         LOG("DilliDalli Brain initialised...")
 
-        self.mexes:Init(self)
-        self.mexes:SetBudget(20)
-        self.pgens:Init(self,"POWER_T1")
-        self.pgens:SetBudget(20)
-        self.upgrades:Init(self,"MEX_T1","MEX_T2")
-        self.upgrades:SetBudget(20)
+        self.economy:Init()
+        self.economy:SetBudget(20)
     end,
 
     GameStartThread = function(self)
@@ -61,10 +53,8 @@ Brain = Class({
         self:InitialiseComponents()
         -- Do any pre-building setup
         self.monitoring:Run()
-        self.mexes:Run()
-        self.pgens:Run()
-        self.upgrades:Run()
         self.locationManager:Run()
+        self.economy:Run()
         WaitSeconds(4)
         -- Start the game!
         self.jobDistributor:Run()
@@ -76,6 +66,7 @@ Brain = Class({
     end,
 
     ForkThread = function(self, obj, fn, ...)
+        -- TODO: track number of active threads at any one time. lua_status??
         if fn then
             local thread = ForkThread(fn, obj, unpack(arg))
             self.trash:Add(thread)
