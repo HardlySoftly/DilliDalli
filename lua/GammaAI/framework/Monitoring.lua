@@ -43,6 +43,14 @@ UnitMonitoring = Class({
         self.nextMassConsumption = 0
     end,
 
+    GetNumUnits = function(self, bpID)
+        if self.units[bpID] then
+            return self.units[bpID].num
+        else
+            return 0
+        end
+    end,
+
     AddUnit = function(self, unit)
         local bpID = unit.UnitId
         if not self.units[bpID] then

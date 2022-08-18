@@ -360,10 +360,11 @@ Job = Class({
     MaxSpendAtUtilityThreshold = function(self, thresholdUtility)
         local maxBuildpower = 0
         local i = 1
-        while i < self.numWorkItems do
+        while i <= self.numWorkItems do
             if self.workItems[i].utility >= thresholdUtility then
                 maxBuildpower = maxBuildpower + self.workItems[i]:GetMaxBuildpower()
             end
+            i = i+1
         end
         return maxBuildpower*self.buildRate
     end,
@@ -381,6 +382,25 @@ Job = Class({
             CanBuild(builder, self.productionID) and 
             (self.active < self.count)
         )
+    end,
+    CanBuildJob = function(self)
+        -- Does a unit exist that can start this job??
+        -- TODO: Shift this to distribution thread; component based checks can be done there
+        local bpIDs = { self.productionID }
+        if PRODUCTION_TRANSLATION[self.productionID] then
+            bpIDs = PRODUCTION_TRANSLATION[self.productionID]
+        end
+        for _, bpID in bpIDs do
+            local pgItem = PRODUCTION_GRAPH[bpID]
+            local i = 1
+            while i <= pgItem.builtByN do
+                if self.brain.monitoring:GetNumUnits(pgItem.builtBy[i]) > 0 then
+                    return true
+                end
+                i = i+1
+            end
+        end
+        return false
     end,
 
     CheckState = function(self)
