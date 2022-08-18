@@ -37,6 +37,10 @@ UnitMonitoring = Class({
         self.brain = brain
         self.registrations = {}
         self.units = {}
+        self.energyConsumption = 0
+        self.massConsumption = 0
+        self.nextEnergyConsumption = 0
+        self.nextMassConsumption = 0
     end,
 
     AddUnit = function(self, unit)
@@ -79,16 +83,23 @@ UnitMonitoring = Class({
             for bpID, item in self.units do
                 local i = 1
                 while i <= item.num do
-                    if (not item.units[i]) or item.units[i].Dead then
+                    local unit = item.units[i]
+                    if (not unit) or unit.Dead then
                         item.units[i] = item.units[item.num]
                         item.units[item.num] = nil
                         item.num = item.num - 1
                     else
+                        self.nextEnergyConsumption = self.nextEnergyConsumption + unit:GetConsumptionPerSecondEnergy()
+                        self.nextMassConsumption = self.nextMassConsumption + unit:GetConsumptionPerSecondMass()
                         i = i+1
                     end
                     workLimiter:MaybeWait()
                 end
             end
+            self.energyConsumption = self.nextEnergyConsumption
+            self.nextEnergyConsumption = 0
+            self.massConsumption = self.nextMassConsumption
+            self.nextMassConsumption = 0
         end
         workLimiter:End()
     end,
