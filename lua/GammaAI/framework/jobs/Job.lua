@@ -27,6 +27,7 @@ local MIN_BUILD_TIME_SECONDS = 15
 local BASE_MOVE_TIME_SECONDS = 5
 local UTILITY_HALF_RATE_SECONDS = 15
 
+local LARGE_NUMBER = 1000000000
 
 local PRODUCTION_GRAPH = nil
 
@@ -157,6 +158,7 @@ WorkItem = Class({
     CanStartWith = function(self, builder) WARN("'CanStartWith' Not implemented!") end,
     StartJob = function(self, builder, brain) WARN("'StartJob' Not implemented!") end,
     GetUtility = function(self, builder) WARN("'GetUtility' Not implemented!") end,
+    GetMaxBuildpower = function(self) WARN("'GetMaxBuildpower' Not implemented!") end,
 })
 
 MobileWorkItem = Class(WorkItem){
@@ -224,6 +226,15 @@ MobileWorkItem = Class(WorkItem){
             (1 + math.max(0,(timeToStart-BASE_MOVE_TIME_SECONDS)/UTILITY_HALF_RATE_SECONDS))
         )
     end,
+    GetMaxBuildpower = function(self)
+        if (not self.location:IsFree()) then
+            return 0
+        elseif self.location.singular then
+            return self.maxBuildpower end
+        else
+            return LARGE_NUMBER
+        end
+    end
 }
 
 UpgradeWorkItem = Class(WorkItem){
@@ -287,6 +298,7 @@ UpgradeWorkItem = Class(WorkItem){
             (1 + math.max(0,(timeToStart-BASE_MOVE_TIME_SECONDS)/UTILITY_HALF_RATE_SECONDS))
         )
     end,
+    GetMaxBuildpower = function(self) return self.maxBuildpower end,
 }
 
 Job = Class({
@@ -345,9 +357,19 @@ Job = Class({
         return workItem
     end,
 
-    GetMarginalUtility = function(self) return self.marginalUtility end
-    GetNextUtility = function(self) return self.nextUtility end
-    SetRequiredUtility = function(self, utility) self.requiredUtility = math.max(0, utility) end
+    MaxSpendAtUtilityThreshold = function(self, thresholdUtility)
+        local maxBuildpower = 0
+        local i = 1
+        while i < self.numWorkItems do
+            if self.workItems[i].utility >= thresholdUtility then
+                maxBuildpower = maxBuildpower + self.workItems[i]:GetMaxBuildpower()
+            end
+        end
+        return maxBuildpower*self.buildRate
+    end,
+    GetMarginalUtility = function(self) return self.marginalUtility end,
+    GetNextUtility = function(self) return self.nextUtility end,
+    SetRequiredUtility = function(self, utility) self.requiredUtility = math.max(0, utility) end,
     SetPriority = function(self, priority) self.priority = priority end,
     SetBudget = function(self, budget) self.budget = budget end,
     GetBudget = function(self, budget) return self.budget end,
@@ -364,6 +386,8 @@ Job = Class({
     CheckState = function(self)
         self.buildpower = 0
         local i = 1
+        self.nextUtility = 0
+        self.marginalUtility = 0
         while i <= self.numWorkItems do
             local workItem = self.workItems[i]
             workItem:CheckState()
