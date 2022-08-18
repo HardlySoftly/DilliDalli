@@ -243,7 +243,7 @@ JobDistributor = Class({
             -- Job exists, is active, has priority, has budget, is below budget
             if job and job.keep and (job.priority >= bestPriority) and (job.budget > 0) and (job:GetSpend() < job.budget) then
                 local candidate = self:FindWorkItemEngineer(engineer, job)
-                if (candidate.utility > 0) and ((job.priority > bestPriority) or (candidate.utility > bestUtility)) then
+                if (candidate.utility > job.requiredUtility) and ((job.priority > bestPriority) or (candidate.utility > bestUtility)) then
                     bestWorkItem = candidate.workItem
                     bestPriority = job.priority
                     bestUtility = candidate.utility

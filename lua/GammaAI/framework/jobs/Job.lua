@@ -303,6 +303,7 @@ Job = Class({
         self.productionID = productionID
         self.priority = priority
         self.jobType = jobType
+        self.requiredUtility = 0
         -- Internal, set via helper methods
         self.count = 0
         self.budget = 0
@@ -311,6 +312,8 @@ Job = Class({
         self.buildpower = 0
         self.workItems = {}
         self.numWorkItems = 0
+        self.marginalUtility = 0
+        self.nextUtility = 0
 
         -- TODO: Handle translation layer better
         self.bp = nil
@@ -342,8 +345,12 @@ Job = Class({
         return workItem
     end,
 
+    GetMarginalUtility = function(self) return self.marginalUtility end
+    GetNextUtility = function(self) return self.nextUtility end
+    SetRequiredUtility = function(self, utility) self.requiredUtility = math.max(0, utility) end
     SetPriority = function(self, priority) self.priority = priority end,
     SetBudget = function(self, budget) self.budget = budget end,
+    GetBudget = function(self, budget) return self.budget end,
     SetCount = function(self, count) self.count = count end,
     GetSpend = function(self) return self.buildpower*self.buildRate end,
     Destroy = function(self) self.keep = false end,
@@ -365,6 +372,11 @@ Job = Class({
                 self.workItems[self.numWorkItems] = nil
                 self.numWorkItems = self.numWorkItems - 1
             else
+                if (workItem.numExecutors > 0) and (workItem.utility > self.marginalUtility) then
+                    self.marginalUtility = workItem.utility
+                elseif (workItem.numExecutors == 0) and (workItem.utility > self.nextUtility) then
+                    self.nextUtility = workItem.utility
+                end
                 self.buildpower = self.buildpower + workItem:GetBuildpower()
                 i = i+1
             end

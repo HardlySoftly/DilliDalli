@@ -42,7 +42,7 @@ Brain = Class({
         self.jobDistributor:Init(self)
         LOG("DilliDalli Brain initialised...")
 
-        self.economy:Init()
+        self.economy:Init(self)
         self.economy:SetBudget(20)
     end,
 
