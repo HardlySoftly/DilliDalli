@@ -88,6 +88,7 @@ WorkItem = Class({
         self.job = job
         self.utility = 0
         self.keep = true
+        self.buildable = true
         self.executors = {}
         self.numExecutors = 0
         self.maxBuildpower = self.job.buildTime/MIN_BUILD_TIME_SECONDS
@@ -98,6 +99,7 @@ WorkItem = Class({
     Destroy = function(self) self.keep = false end,
     SetUtility = function(self, utility) self.utility = utility end,
     KeepItem = function(self) return self.keep or (self.numExecutors > 0) end,
+    IsBuildable = function(self) return self.buildable and self.keep end,
     CanAssistWith = function(self, engineer)
         local i = 1
         while i <= self.numExecutors do
@@ -230,11 +232,11 @@ MobileWorkItem = Class(WorkItem){
         if (not self.location:IsFree()) then
             return 0
         elseif self.location.singular then
-            return self.maxBuildpower end
+            return self.maxBuildpower
         else
             return LARGE_NUMBER
         end
-    end
+    end,
 }
 
 UpgradeWorkItem = Class(WorkItem){

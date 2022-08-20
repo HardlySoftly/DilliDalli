@@ -338,6 +338,7 @@ JobDistributor = Class({
     end,
 
     Run = function(self)
+        -- TODO: Job item buildability monitoring / updates
         self.brain:ForkThread(self, self.BuilderMonitoringThread)
         self.brain:ForkThread(self, self.JobMonitoringThread)
     end,
