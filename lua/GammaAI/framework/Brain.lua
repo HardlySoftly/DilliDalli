@@ -62,7 +62,7 @@ Brain = Class({
     end,
 
     IsAlive = function(self)
-        return self.aiBrain.Result ~= "defeat"
+        return not self.aiBrain:IsDefeated()
     end,
 
     ForkThread = function(self, obj, fn, ...)
