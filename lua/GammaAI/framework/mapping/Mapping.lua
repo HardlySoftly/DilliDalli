@@ -6,7 +6,22 @@ local CreatePriorityQueue = import('/mods/DilliDalli/lua/GammaAI/framework/utils
 ]]
 local MYOWNMARKERS = {}
 function CreateMarker(t,x,y,z,size)
-    table.insert(MYOWNMARKERS,{type=t,position={x,y,z}})
+    if map:IsInitialised() then
+        local item = {
+            type=t,
+            position={x,y,z},
+            components={
+                map:GetComponent({x,y,z}, LAYER_LAND),
+                map:GetComponent({x,y,z}, LAYER_NAVY),
+                map:GetComponent({x,y,z}, LAYER_HOVER),
+                map:GetComponent({x,y,z}, LAYER_AMPH)
+            }
+        }
+        table.insert(MYOWNMARKERS,item)
+        map:AddMarker(item)
+    else
+        table.insert(MYOWNMARKERS,{type=t,position={x,y,z}})
+    end
 end
 function GetMarkers()
     return MYOWNMARKERS
@@ -270,11 +285,14 @@ local ConnectivityCheckingFunctions = {
 
 GameMap = Class({
     InitMap = function(self)
+        self.initialised = true
         LOG('GammaAI framework: CreateMapMarkers() started!')
         local START = GetSystemTimeSecondsOnlyForProfileUse()
         self:CreateMapMarkers()
         self.zoneSets = {}
         self.numZoneSets = 0
+        self.markerCounts = {}
+        self:GetMarkerComponents()
         local END = GetSystemTimeSecondsOnlyForProfileUse()
         LOG(string.format('GammaAI framework: CreateMapMarkers() finished, runtime: %.2f seconds.', END - START ))
         local drawStuffz = false
@@ -293,6 +311,8 @@ GameMap = Class({
             )
         end
     end,
+
+    IsInitialised = function(self) return self.initialised end
 
     CreateMapMarkers = function(self)
         -- Step 1: Initialise arrays of points to the correct size, and record offsets for position translation
@@ -513,6 +533,46 @@ GameMap = Class({
                 self.components[i][j-1][k] = componentNumber
             end
         end
+    end,
+    GetMarkerComponents = function(self)
+        for _, item in MYOWNMARKERS do
+            item.components = {}
+            item.components[LAYER_LAND] = self:GetComponent(item.position, LAYER_LAND)
+            item.components[LAYER_NAVY] = self:GetComponent(item.position, LAYER_NAVY)
+            item.components[LAYER_HOVER] = self:GetComponent(item.position, LAYER_HOVER)
+            item.components[LAYER_AMPH] = self:GetComponent(item.position, LAYER_AMPH)
+        end
+        self:AddMarker(item)
+    end,
+    AddMarker = function(self,item)
+        if not self.markerCounts[item.type] then
+            self.markerCounts[item.type] = {{}, {}, {}, {}}
+        end
+        if not self.markerCounts[item.type][LAYER_LAND] then
+            self.markerCounts[item.type][LAYER_LAND] = 0
+        end
+        self.markerCounts[item.type][LAYER_LAND] = self.markerCounts[item.type][LAYER_LAND] + 1
+        if not self.markerCounts[item.type][LAYER_NAVY] then
+            self.markerCounts[item.type][LAYER_NAVY] = 0
+        end
+        self.markerCounts[item.type][LAYER_NAVY] = self.markerCounts[item.type][LAYER_NAVY] + 1
+        if not self.markerCounts[item.type][LAYER_HOVER] then
+            self.markerCounts[item.type][LAYER_HOVER] = 0
+        end
+        self.markerCounts[item.type][LAYER_HOVER] = self.markerCounts[item.type][LAYER_HOVER] + 1
+        if not self.markerCounts[item.type][LAYER_AMPH] then
+            self.markerCounts[item.type][LAYER_AMPH] = 0
+        end
+        self.markerCounts[item.type][LAYER_AMPH] = self.markerCounts[item.type][LAYER_AMPH] + 1
+    end,
+    GetSignificantComponents = function(self,minSize,layer)
+        local res = {}
+        for i=1, self.componentNumbers[layer] do
+            if (self.componentSizes[layer][i] > minSize) or (self.markerCounts["Mass"][layer] > 0) then
+                table.insert(res, i)
+            end
+        end
+        return res
     end,
     CanPathTo = function(self,pos0,pos1,layer)
         local i0 = self:GetI(pos0[1])
