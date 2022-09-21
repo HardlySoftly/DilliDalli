@@ -112,6 +112,12 @@ UnitMonitoring = Class({
         workLimiter:End()
     end,
 
+    GetEnergyConsumption = function(self) return self.energyConsumption end,
+    GetMassConsumption = function(self) return self.massConsumption end,
+    -- TODO: Normalise provided income stats
+    GetEnergyIncome = function(self) return self.brain.aiBrain:GetEconomyIncome('ENERGY')*10 end,
+    GetMassIncome = function(self) return self.brain.aiBrain:GetEconomyIncome('MASS')*10 end,
+
     RegisterInterest = function(self, blueprintID, unitList)
         if not self.registrations[blueprintID] then
             self.registrations[blueprintID] = { count = 0, lists = {} }
