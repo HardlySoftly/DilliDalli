@@ -3,9 +3,9 @@ local JobDistributor = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/JobDi
 local Monitoring = import('/mods/DilliDalli/lua/GammaAI/framework/Monitoring.lua')
 local LocationManager = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/Location.lua').LocationManager
 local EconomyManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/EconomyManager.lua').EconomyManager
+local PickBuildOrder = import('/mods/DilliDalli/lua/GammaAI/framework/BuildOrder.lua').PickBuildOrder
 
 local MAP = import('/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua').GetMap()
-
 
 Brain = Class({
     Init = function(self,aiBrain)
@@ -58,11 +58,14 @@ Brain = Class({
         self.monitoring:Run()
         self.locationManager:Run()
         self.economy:Run()
+        local buildOrder = PickBuildOrder(self)
+        buildOrder:Init(self)
         WaitSeconds(4)
         -- Start the game!
         self.jobDistributor:Run()
-        self:ForkThread(self, self.StrategyExecutionThread())
-        self:ForkThread(self, self.StrategySettingThread())
+        buildOrder:Run()
+        self:ForkThread(self, self.StrategyExecutionThread)
+        self:ForkThread(self, self.StrategySettingThread)
         _ALERT("GammaAI Brain running...")
     end,
 
