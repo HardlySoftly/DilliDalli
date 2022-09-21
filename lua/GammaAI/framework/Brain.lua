@@ -14,6 +14,10 @@ Brain = Class({
         -- For putting threads in
         self.trash = TrashBag()
 
+        -- Strategy state
+        self.strategies = {}
+        self.totalWeight = 1
+
         -- Create brain components
         self:CreateComponents()
 
@@ -40,10 +44,9 @@ Brain = Class({
         self.monitoring:Init(self)
         self.locationManager:Init(self)
         self.jobDistributor:Init(self)
-        LOG("DilliDalli Brain initialised...")
+        _ALERT("GammaAI Brain initialised...")
 
         self.economy:Init(self)
-        self.economy:SetBudget(20)
     end,
 
     GameStartThread = function(self)
@@ -58,7 +61,41 @@ Brain = Class({
         WaitSeconds(4)
         -- Start the game!
         self.jobDistributor:Run()
-        LOG("DilliDalli Brain running...")
+        self:ForkThread(self, self.StrategyExecutionThread())
+        self:ForkThread(self, self.StrategySettingThread())
+        _ALERT("GammaAI Brain running...")
+    end,
+
+    SetStrategies = function(self, strategies)
+        self.strategies = {}
+        self.totalWeight = 0
+        for _, item in strategies do
+            -- Each item has a name, weight, and a strategy instance
+            self.totalWeight = self.totalWeight + math.max(item.weight,0)
+            table.insert(self.strategies, item)
+        end
+        if self.totalWeight == 0 then
+            self.totalWeight = 1
+        end
+    end,
+
+    StrategySettingThread = function(self)
+        -- Override this in custom AI brains to drive different behaviours
+        self:SetStrategies({
+            {name="Economy", weight=1, strategy=self.economy}
+        })
+    end,
+
+    StrategyExecutionThread = function(self)
+        -- Handle setting of budgets in accordance with the chosen strategies
+        local workLimiter = CreateWorkLimiter(WORK_RATE,"Brain:StrategyExecutionThread")
+        while self.brain:IsAlive() do
+            local currentMassIncome = self.monitoring:GetMassIncome()
+            for _, item in self.strategies do
+                item.strategy:SetBudget(item.weight*currentMassIncome/self.totalWeight)
+            end
+            workLimiter:WaitTicks(20)
+        end
     end,
 
     IsAlive = function(self)
@@ -67,12 +104,12 @@ Brain = Class({
 
     ForkThread = function(self, obj, fn, ...)
         -- TODO: track number of active threads at any one time. lua_status??
-        if fn then
+        if fn and obj then
             local thread = ForkThread(fn, obj, unpack(arg))
             self.trash:Add(thread)
             return thread
         else
-            WARN("ForkThread called, but provided function was nil...")
+            WARN("ForkThread called, but provided object or function were nil...")
             return nil
         end
     end,

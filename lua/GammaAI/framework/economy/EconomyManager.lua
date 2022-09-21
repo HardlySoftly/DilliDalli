@@ -2,8 +2,9 @@ local MassMarkerManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy
 local PowerAreaManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/AreaManagement.lua').PowerAreaManager
 local MassUpgradeManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/UpgradeManagement.lua').MassUpgradeManager
 local CreateWorkLimiter = import('/mods/DilliDalli/lua/GammaAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
+local Strategy = import('/mods/DilliDalli/lua/GammaAI/framework/Strategy.lua').Strategy
 
-EconomyManager = Class({
+EconomyManager = Class(Strategy){
     Init = function(self, brain)
         self.brain = brain
         self.budget = 0
@@ -121,4 +122,4 @@ EconomyManager = Class({
     -- External interface functions
     SetBudget = function(self, budget) self.budget = budget end,
     PredictGrowth = function(self, timePeriodSeconds) WARN("EconomyManager:PredictGrowth not implemented!") end,
-})
+}
