@@ -3,6 +3,7 @@ local JobDistributor = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/JobDi
 local Monitoring = import('/mods/DilliDalli/lua/GammaAI/framework/Monitoring.lua')
 local LocationManager = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/Location.lua').LocationManager
 local EconomyManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/EconomyManager.lua').EconomyManager
+local LandCoorindator = import('/mods/DilliDalli/lua/GammaAI/framework/land/LandCoorindator.lua').LandCoorindator
 local PickBuildOrder = import('/mods/DilliDalli/lua/GammaAI/framework/BuildOrder.lua').PickBuildOrder
 
 local MAP = import('/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua').GetMap()
@@ -36,6 +37,8 @@ Brain = Class({
         self.jobDistributor = JobDistributor()
         -- For handling mass/energy
         self.economy = EconomyManager()
+        -- For handling all Land unit related things
+        self.land = LandCoorindator()
     end,
 
     InitialiseComponents = function(self)
@@ -47,6 +50,8 @@ Brain = Class({
         _ALERT("GammaAI Brain initialised...")
 
         self.economy:Init(self)
+
+        self.land:Init(self)
     end,
 
     GameStartThread = function(self)
@@ -58,6 +63,7 @@ Brain = Class({
         self.monitoring:Run()
         self.locationManager:Run()
         self.economy:Run()
+        self.land:Run()
         local buildOrder = PickBuildOrder(self)
         buildOrder:Init(self)
         WaitSeconds(4)
