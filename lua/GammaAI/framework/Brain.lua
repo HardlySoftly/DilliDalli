@@ -3,8 +3,9 @@ local JobDistributor = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/JobDi
 local Monitoring = import('/mods/DilliDalli/lua/GammaAI/framework/Monitoring.lua')
 local LocationManager = import('/mods/DilliDalli/lua/GammaAI/framework/jobs/Location.lua').LocationManager
 local EconomyManager = import('/mods/DilliDalli/lua/GammaAI/framework/economy/EconomyManager.lua').EconomyManager
-local LandCoorindator = import('/mods/DilliDalli/lua/GammaAI/framework/land/LandCoorindator.lua').LandCoorindator
+local LandCoordinator = import('/mods/DilliDalli/lua/GammaAI/framework/land/LandCoordinator.lua').LandCoordinator
 local PickBuildOrder = import('/mods/DilliDalli/lua/GammaAI/framework/BuildOrder.lua').PickBuildOrder
+local CreateWorkLimiter = import('/mods/DilliDalli/lua/GammaAI/framework/utils/WorkLimits.lua').CreateWorkLimiter
 
 local MAP = import('/mods/DilliDalli/lua/GammaAI/framework/mapping/Mapping.lua').GetMap()
 
@@ -38,7 +39,7 @@ Brain = Class({
         -- For handling mass/energy
         self.economy = EconomyManager()
         -- For handling all Land unit related things
-        self.land = LandCoorindator()
+        self.land = LandCoordinator()
     end,
 
     InitialiseComponents = function(self)
@@ -97,8 +98,8 @@ Brain = Class({
 
     StrategyExecutionThread = function(self)
         -- Handle setting of budgets in accordance with the chosen strategies
-        local workLimiter = CreateWorkLimiter(WORK_RATE,"Brain:StrategyExecutionThread")
-        while self.brain:IsAlive() do
+        local workLimiter = CreateWorkLimiter(1,"Brain:StrategyExecutionThread")
+        while self:IsAlive() do
             local currentMassIncome = self.monitoring:GetMassIncome()
             for _, item in self.strategies do
                 item.strategy:SetBudget(item.weight*currentMassIncome/self.totalWeight)
@@ -107,9 +108,7 @@ Brain = Class({
         end
     end,
 
-    IsAlive = function(self)
-        return not self.aiBrain:IsDefeated()
-    end,
+    IsAlive = function(self) return not self.aiBrain:IsDefeated() end,
 
     ForkThread = function(self, obj, fn, ...)
         -- TODO: track number of active threads at any one time. lua_status??

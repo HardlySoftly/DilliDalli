@@ -1,12 +1,21 @@
 local CreatePriorityQueue = import('/mods/DilliDalli/lua/GammaAI/framework/utils/PriorityQueue.lua').CreatePriorityQueue
 
+-- Map and zone objects
+local map = nil
+local zoneSets = {}
+
+
 --[[
     A table containing all the markers that are actually created.
     This is different to the MASTERCHAIN variable for adaptive maps, which only selectively create certain markers.
 ]]
 local MYOWNMARKERS = {}
+
+--[[
+    Interface for filling in the MYOWNMARKERS local table
+]]
 function CreateMarker(t,x,y,z,size)
-    if map:IsInitialised() then
+    if map and map:IsInitialised() then
         local item = {
             type=t,
             position={x,y,z},
@@ -312,7 +321,7 @@ GameMap = Class({
         end
     end,
 
-    IsInitialised = function(self) return self.initialised end
+    IsInitialised = function(self) return self.initialised end,
 
     CreateMapMarkers = function(self)
         -- Step 1: Initialise arrays of points to the correct size, and record offsets for position translation
@@ -541,29 +550,29 @@ GameMap = Class({
             item.components[LAYER_NAVY] = self:GetComponent(item.position, LAYER_NAVY)
             item.components[LAYER_HOVER] = self:GetComponent(item.position, LAYER_HOVER)
             item.components[LAYER_AMPH] = self:GetComponent(item.position, LAYER_AMPH)
+            self:AddMarker(item)
         end
-        self:AddMarker(item)
     end,
     AddMarker = function(self,item)
         if not self.markerCounts[item.type] then
             self.markerCounts[item.type] = {{}, {}, {}, {}}
         end
-        if not self.markerCounts[item.type][LAYER_LAND] then
-            self.markerCounts[item.type][LAYER_LAND] = 0
+        if not self.markerCounts[item.type][LAYER_LAND][item.components[LAYER_LAND]] then
+            self.markerCounts[item.type][LAYER_LAND][item.components[LAYER_LAND]] = 0
         end
-        self.markerCounts[item.type][LAYER_LAND] = self.markerCounts[item.type][LAYER_LAND] + 1
-        if not self.markerCounts[item.type][LAYER_NAVY] then
-            self.markerCounts[item.type][LAYER_NAVY] = 0
+        self.markerCounts[item.type][LAYER_LAND][item.components[LAYER_LAND]] = self.markerCounts[item.type][LAYER_LAND][item.components[LAYER_LAND]] + 1
+        if not self.markerCounts[item.type][LAYER_NAVY][item.components[LAYER_NAVY]] then
+            self.markerCounts[item.type][LAYER_NAVY][item.components[LAYER_NAVY]] = 0
         end
-        self.markerCounts[item.type][LAYER_NAVY] = self.markerCounts[item.type][LAYER_NAVY] + 1
-        if not self.markerCounts[item.type][LAYER_HOVER] then
-            self.markerCounts[item.type][LAYER_HOVER] = 0
+        self.markerCounts[item.type][LAYER_NAVY][item.components[LAYER_NAVY]] = self.markerCounts[item.type][LAYER_NAVY][item.components[LAYER_NAVY]] + 1
+        if not self.markerCounts[item.type][LAYER_HOVER][item.components[LAYER_HOVER]] then
+            self.markerCounts[item.type][LAYER_HOVER][item.components[LAYER_HOVER]] = 0
         end
-        self.markerCounts[item.type][LAYER_HOVER] = self.markerCounts[item.type][LAYER_HOVER] + 1
-        if not self.markerCounts[item.type][LAYER_AMPH] then
-            self.markerCounts[item.type][LAYER_AMPH] = 0
+        self.markerCounts[item.type][LAYER_HOVER][item.components[LAYER_HOVER]] = self.markerCounts[item.type][LAYER_HOVER][item.components[LAYER_HOVER]] + 1
+        if not self.markerCounts[item.type][LAYER_AMPH][item.components[LAYER_AMPH]] then
+            self.markerCounts[item.type][LAYER_AMPH][item.components[LAYER_AMPH]] = 0
         end
-        self.markerCounts[item.type][LAYER_AMPH] = self.markerCounts[item.type][LAYER_AMPH] + 1
+        self.markerCounts[item.type][LAYER_AMPH][item.components[LAYER_AMPH]] = self.markerCounts[item.type][LAYER_AMPH][item.components[LAYER_AMPH]] + 1
     end,
     GetSignificantComponents = function(self,minSize,layer)
         local res = {}
@@ -887,8 +896,7 @@ GameMap = Class({
     end,
 })
 
-local map = GameMap()
-local zoneSets = {}
+map = GameMap()
 
 function BeginSession()
     -- TODO: Detect if a map is required (inc versioning?)

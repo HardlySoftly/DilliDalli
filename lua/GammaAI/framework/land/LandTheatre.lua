@@ -1,5 +1,5 @@
-local LandTheatre = import('/mods/DilliDalli/lua/GammaAI/framework/land/LandTheatre.lua').LandProduction
-local LandTheatre = import('/mods/DilliDalli/lua/GammaAI/framework/land/LandTheatre.lua').LandControl
+local LandProduction = import('/mods/DilliDalli/lua/GammaAI/framework/land/LandProduction.lua').LandProduction
+local LandControl = import('/mods/DilliDalli/lua/GammaAI/framework/land/LandControl.lua').LandControl
 local Strategy = import('/mods/DilliDalli/lua/GammaAI/framework/Strategy.lua').Strategy
 
 LandTheatre = Class(Strategy){
@@ -15,6 +15,7 @@ LandTheatre = Class(Strategy){
     end,
 
     Run = function(self)
-        
+        self.production:Run()
+        self.control:Run()
     end,
 }

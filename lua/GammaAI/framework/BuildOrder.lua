@@ -16,5 +16,5 @@ BuildOrder = Class({
 
 function PickBuildOrder(brain)
     -- TODO
-    return BuildOrder
+    return BuildOrder()
 end
