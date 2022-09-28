@@ -99,6 +99,22 @@ JobDistributor = Class({
         structure.GammaAI.jobData:Init(structure)
     end,
 
+    IsWorkItemBuildable = function(self, workItem)
+        return false
+    end,
+
+    CheckJobBuildability = function(self, job)
+        local j = 1
+        while j <= job.numWorkItems do
+            local workItem = job.workItems[j]
+            if workItem and workItem.keep then
+                local buildable = self:IsWorkItemBuildable(workItem)
+                workItem:SetBuildable(buildable)
+            end
+            j = j+1
+        end
+    end,
+
     JobMonitoringThread = function(self)
         local workLimiter = CreateWorkLimiter(WORK_RATE,"JobDistributor:JobMonitoringThread")
         while self.brain:IsAlive() and workLimiter:Wait() do
@@ -111,6 +127,7 @@ JobDistributor = Class({
                     self.numMobileJobs = self.numMobileJobs - 1
                 else
                     job:CheckState()
+                    self:CheckJobBuildability(job)
                     i = i+1
                 end
                 workLimiter:MaybeWait()
@@ -124,6 +141,7 @@ JobDistributor = Class({
                     self.numFactoryJobs = self.numFactoryJobs - 1
                 else
                     job:CheckState()
+                    self:CheckJobBuildability(job)
                     i = i+1
                 end
                 workLimiter:MaybeWait()
@@ -137,6 +155,7 @@ JobDistributor = Class({
                     self.numUpgradeJobs = self.numUpgradeJobs - 1
                 else
                     job:CheckState()
+                    self:CheckJobBuildability(job)
                     i = i+1
                 end
                 workLimiter:MaybeWait()

@@ -88,7 +88,7 @@ WorkItem = Class({
         self.job = job
         self.utility = 0
         self.keep = true
-        self.buildable = true
+        self.buildable = false
         self.executors = {}
         self.numExecutors = 0
         self.maxBuildpower = self.job.buildTime/MIN_BUILD_TIME_SECONDS
@@ -100,6 +100,7 @@ WorkItem = Class({
     SetUtility = function(self, utility) self.utility = utility end,
     KeepItem = function(self) return self.keep or (self.numExecutors > 0) end,
     IsBuildable = function(self) return self.buildable and self.keep end,
+    SetBuildable = function(self, buildable) self.buildable = buildable end,
     CanAssistWith = function(self, engineer)
         local i = 1
         while i <= self.numExecutors do
@@ -229,7 +230,7 @@ MobileWorkItem = Class(WorkItem){
         )
     end,
     GetMaxBuildpower = function(self)
-        if (not self.location:IsFree()) then
+        if (not self.location:IsFree()) or (not self.buildable) then
             return 0
         elseif self.location.singular then
             return self.maxBuildpower
@@ -300,7 +301,13 @@ UpgradeWorkItem = Class(WorkItem){
             (1 + math.max(0,(timeToStart-BASE_MOVE_TIME_SECONDS)/UTILITY_HALF_RATE_SECONDS))
         )
     end,
-    GetMaxBuildpower = function(self) return self.maxBuildpower end,
+    GetMaxBuildpower = function(self)
+        if self.buildable then
+            return self.maxBuildpower
+        else
+            return 0
+        end
+    end,
 }
 
 Job = Class({
@@ -384,25 +391,6 @@ Job = Class({
             CanBuild(builder, self.productionID) and 
             (self.active < self.count)
         )
-    end,
-    CanBuildJob = function(self)
-        -- Does a unit exist that can start this job??
-        -- TODO: Shift this to distribution thread; component based checks can be done there
-        local bpIDs = { self.productionID }
-        if PRODUCTION_TRANSLATION[self.productionID] then
-            bpIDs = PRODUCTION_TRANSLATION[self.productionID]
-        end
-        for _, bpID in bpIDs do
-            local pgItem = PRODUCTION_GRAPH[bpID]
-            local i = 1
-            while i <= pgItem.builtByN do
-                if self.brain.monitoring:GetNumUnits(pgItem.builtBy[i]) > 0 then
-                    return true
-                end
-                i = i+1
-            end
-        end
-        return false
     end,
 
     CheckState = function(self)
