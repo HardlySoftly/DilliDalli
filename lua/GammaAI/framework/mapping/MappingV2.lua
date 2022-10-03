@@ -19,6 +19,13 @@ local MAX_GRADIENT = 0.75
 local MAX_DEPTH_LAND = 0.0
 local MAX_DEPTH_AMPHIBIOUS = 25
 local MIN_DEPTH_NAVY = 1.5
+
+---@alias GenLayer
+--- | '1' # Land layer 
+--- | '2' # Navy layer
+--- | '3' # Hover layer
+--- | '4' # Amph layer
+
 -- Some constants so we can refer to specific layers later
 local LAYER_LAND = 1
 local LAYER_NAVY = 2
@@ -28,11 +35,15 @@ local LAYER_AMPH = 4
 local MAP_AREA_SIZE = 32
 
 -- A helper class that implements a Set, used by ConnectivityMatrix
-ConnectivitySet = Class({
+---@class ConnectivitySet
+---@field size number
+---@field items table
+ConnectivitySet = ClassSimple({
     Init = function(self)
         self.size = 0
         self.items = {}
     end,
+
     Add = function(self, item)
         -- No binary search here, probably minimal performance benefits to it
         for i = 1, self.size do
@@ -46,16 +57,24 @@ ConnectivitySet = Class({
     end,
 })
 
-ConnectivityMatrix = Class({
-    -- Class used to track connections between potential components, and then translate to a minimal set of components
+--- Class used to track connections between potential components, and then translate to a minimal set of components
+---@class ConnectivityMatrix 
+---@field maxComponentNumber number
+---@field numComponents number
+---@field matrix ConnectivitySet[]
+---@field translation number[]
+ConnectivityMatrix = ClassSimple({
+
     Init = function(self)
         self.maxComponentNumber = 0
         self.matrix = {}
     end,
+
+    --- Collapse created components based on the connections identified. Performs a search through the connectivity matrix it has built
+    ---@param self ConnectivityMatrix
     MergeComponents = function(self)
-        -- Collapse created components based on the connections identified
-        -- Performs a search through the connectivity matrix it has built
         local numComponents = 0
+
         -- Translation is from originally assigned component number to the final true component number
         local translation = {}
         for i = 1, self.maxComponentNumber do
@@ -88,29 +107,42 @@ ConnectivityMatrix = Class({
         self.translation = translation
         self.numComponents = numComponents
     end,
+
+    --- Returns a new component number
+    ---@param self ConnectivityMatrix
+    ---@return number
     AddComponent = function(self)
-        -- Return a new component number
         self.maxComponentNumber = self.maxComponentNumber + 1
         local cs = ConnectivitySet()
         cs:Init()
         self.matrix[self.maxComponentNumber] = cs
         return self.maxComponentNumber
     end,
+
+    --- Inform the ConnectivityMatrix of a connection between two components. a and b must both be in the range [1,maxComponentNumber] inclusive, a ~= b
+    ---@param self ConnectivityMatrix
+    ---@param a number
+    ---@param b number
     AddConnection = function(self, a, b)
-        -- Inform the ConnectivityMatrix of a connection between two components
-        -- a and b must both be in the range [1,maxComponentNumber] inclusive, a ~= b
         self.matrix[a]:Add(b)
         self.matrix[b]:Add(a)
     end,
+
+    --- Translate from initial component numbers to final component numbers (do this after calling MergeComponents)
+    ---@param self ConnectivityMatrix
+    ---@param a number
+    ---@return number
     Translate = function(self, a)
-        -- Translate from initial component numbers to final component numbers (do this after calling MergeComponents)
         if a <= 0 then
             return a
         end
         return self.translation[a]
     end,
+
+    --- Returns how many connections between the original components exist
+    ---@param self ConnectivityMatrix
+    ---@return number
     CountEdges = function(self)
-        -- How many connections between the original components exist
         local res = 0
         for i = 1, self.maxComponentNumber do
             res = res + self.matrix[i].size
@@ -119,16 +151,44 @@ ConnectivityMatrix = Class({
     end,
 })
 
-MapArea = Class({
+---@class MapArea
+---@field xOffset number
+---@field zOffset number
+---@field maxi number
+---@field maxj number
+---@field compressLand boolean 
+---@field compressNavy boolean 
+---@field compressHover boolean 
+---@field compressAmph boolean
+---@field passableLand boolean | boolean[][]        # is a boolean if compressLand is true
+---@field passableNavy boolean | boolean[][]        # is a boolean if compressNavy is true
+---@field passableHover boolean | boolean [][]      # is a boolean if compressHover is true
+---@field passableAmph boolean | boolean[][]        # is a boolean if compressAmph is true
+---@field componentLand number | number[][]         # is a number if compressLand is true
+---@field componentNavy number | number[][]         # is a number if compressNavy is true
+---@field componentHover number | number[][]        # is a number if compressHover is true
+---@field componentAmph number | number[][]         # is a number if compressAmph is true
+---@field negX MapArea
+---@field negZ MapArea
+---@field posX MapArea
+---@field posZ MapArea
+MapArea = ClassSimple({
+
+    --- Initialise this MapArea and generate layer passability
+    ---@param self MapArea
+    ---@param xOffset number
+    ---@param zOffset number
     Init = function(self, xOffset, zOffset)
-        -- Initialise this MapArea and generate layer passability
         self.xOffset = xOffset
         self.zOffset = zOffset
         self:InitPassable(xOffset,zOffset)
     end,
+
+    --- Determine the passability of the map within this area. Do all layers together, because although it's messy you make some efficiency savings on calls to terrain height, depth calculations, etc
+    ---@param self MapArea
+    ---@param xOffset number
+    ---@param zOffset number
     InitPassable = function(self, xOffset, zOffset)
-        -- Determine the passability of the map within this area.
-        -- Do all layers together, because although it's messy you make some efficiency savings on calls to terrain height, depth calculations, etc
         -- Localise some commonly called functions
         local mathabs = math.abs
         local mathmin = math.min
@@ -226,19 +286,33 @@ MapArea = Class({
         self.compressHover = compressHover
         self.compressAmph = compressAmph
     end,
+
+    --- Generate component numbers within this MapArea; assumes neighbours have been provided where relevant. Assumes GenerateComponents() has already been called on neighbours in the negative X and Z directions.
+    ---@param self MapArea
+    ---@param landMatrix ConnectivityMatrix
+    ---@param navyMatrix ConnectivityMatrix
+    ---@param hoverMatrix ConnectivityMatrix
+    ---@param amphMatrix ConnectivityMatrix
     GenerateComponents = function(self, landMatrix, navyMatrix, hoverMatrix, amphMatrix)
-        -- Generate component numbers within this MapArea; assumes neighbours have been provided where relevant.
-        -- Assumes GenerateComponents() has already been called on neighbours in the negative X and Z directions.
         self.componentLand = self:GenerateLayerComponents(self.compressLand, self.passableLand, landMatrix, LAYER_LAND)
         self.componentNavy = self:GenerateLayerComponents(self.compressNavy, self.passableNavy, navyMatrix, LAYER_NAVY)
         self.componentHover = self:GenerateLayerComponents(self.compressHover, self.passableHover, hoverMatrix, LAYER_HOVER)
         self.componentAmph = self:GenerateLayerComponents(self.compressAmph, self.passableAmph, amphMatrix, LAYER_AMPH)
     end,
+
+    --- Internal method; generic code for determining initial component numbers
+    ---@param self MapArea
+    ---@param compressed boolean
+    ---@param passable boolean | boolean[][]
+    ---@param matrix ConnectivityMatrix
+    ---@param layer GenLayer
+    ---@return ConnectivityMatrix | number
     GenerateLayerComponents = function(self, compressed, passable, matrix, layer)
-        -- Internal method; generic code for determining initial component numbers
         local mathmin = math.min
         local maxi = self.maxi
         local maxj = self.maxj
+
+        ---@type table | number
         local component = {}
         if compressed then
             component = 0
@@ -317,45 +391,63 @@ MapArea = Class({
         end
         return component
     end,
+
+    --- Internal method; used by neighbouring MapAreas to spread component numbers between MapAreas
+    ---@param self MapArea
+    ---@param i number
+    ---@param j number
+    ---@param layer GenLayer
+    ---@return number
     GetComponent = function(self, i, j, layer)
-        -- Internal method; used by neighbouring MapAreas to spread component numbers between MapAreas
         if layer == LAYER_LAND then
             if self.compressLand then
-                return self.componentLand
+                return self.componentLand -- TODO: fix annotation
             else
                 return self.componentLand[i][j]
             end
         elseif layer == LAYER_NAVY then
             if self.compressNavy then
-                return self.componentNavy
+                return self.componentNavy -- TODO: fix annotation
             else
                 return self.componentNavy[i][j]
             end
         elseif layer == LAYER_HOVER then
             if self.compressHover then
-                return self.componentHover
+                return self.componentHover -- TODO: fix annotation
             else
                 return self.componentHover[i][j]
             end
         elseif layer == LAYER_AMPH then
             if self.compressAmph then
-                return self.componentAmph
+                return self.componentAmph -- TODO: fix annotation
             else
                 return self.componentAmph[i][j]
             end
         end
     end,
+
+    --- Called after all components have been generated, translates all connected component numbers to a single component number based on the ConnectivityMatrix
+    ---@param self MapArea
+    ---@param landMatrix ConnectivityMatrix
+    ---@param navyMatrix ConnectivityMatrix
+    ---@param hoverMatrix ConnectivityMatrix
+    ---@param amphMatrix ConnectivityMatrix
     TranslateComponents = function(self, landMatrix, navyMatrix, hoverMatrix, amphMatrix)
-        -- Called after all components have been generated, translates all connected component numbers to a single component number based on the ConnectivityMatrix
         self.componentLand = self:TranslateLayerComponents(self.compressLand, self.componentLand, landMatrix)
         self.componentNavy = self:TranslateLayerComponents(self.compressNavy, self.componentNavy, navyMatrix)
         self.componentHover = self:TranslateLayerComponents(self.compressHover, self.componentHover, hoverMatrix)
         self.componentAmph = self:TranslateLayerComponents(self.compressAmph, self.componentAmph, amphMatrix)
     end,
+
+    --- Internal method; generic code for translating from provisional to final component numbers
+    ---@param self MapArea
+    ---@param compressed boolean
+    ---@param component number | number[][]
+    ---@param matrix ConnectivityMatrix
+    ---@return number | number[][]
     TranslateLayerComponents = function(self, compressed, component, matrix)
-        -- Internal method; generic code for translating from provisional to final component numbers
         if compressed then
-            return matrix:Translate(component)
+            return matrix:Translate(component) -- TODO: fix annotation
         else
             local maxi = self.maxi
             local maxj = self.maxj
@@ -367,15 +459,26 @@ MapArea = Class({
         end
         return component
     end,
+
+    --- A way to add neighbours to this MapArea.  Neighbours may be nil, for example at the map border.
+    ---@param self MapArea
+    ---@param negX MapArea
+    ---@param negZ MapArea
+    ---@param posX MapArea
+    ---@param posZ MapArea
     AddNeighbors = function(self, negX, negZ, posX, posZ)
-        -- A way to add neighbours to this MapArea.  Neighbours may be nil, for example at the map border.
         self.negX = negX
         self.negZ = negZ
         self.posX = posX
         self.posZ = posZ
     end,
+    
+    --- A way to draw components so you can visualise the components generated
+    ---@param self MapArea
+    ---@param sparsity number
+    ---@param compress boolean
+    ---@param component number | number[][]
     DrawGenericComponents = function(self, sparsity, compress, component)
-        -- A way to draw components so you can visualise the components generated
         local colours = { 'aa1f77b4', 'aaff7f0e', 'aa2ca02c', 'aad62728', 'aa9467bd', 'aa8c564b', 'aae377c2', 'aa7f7f7f', 'aabcbd22', 'aa17becf' }
         if compress then
             if component > 0 then
@@ -399,21 +502,37 @@ MapArea = Class({
             end
         end
     end,
+
+    ---@param self MapArea
+    ---@param sparsity number
     DrawLandComponents = function(self, sparsity)
         self:DrawGenericComponents(sparsity, self.compressLand, self.componentLand)
     end,
+
+    ---@param self MapArea
+    ---@param sparsity number
     DrawNavyComponents = function(self, sparsity)
         self:DrawGenericComponents(sparsity, self.compressNavy, self.componentNavy)
     end,
+
+    ---@param self MapArea
+    ---@param sparsity number
     DrawHoverComponents = function(self, sparsity)
         self:DrawGenericComponents(sparsity, self.compressHover, self.componentHover)
     end,
+
+    ---@param self MapArea
+    ---@param sparsity number
     DrawAmphComponents = function(self, sparsity)
         self:DrawGenericComponents(sparsity, self.compressAmph, self.componentAmph)
     end,
 })
 
-GameMap = Class({
+---@class GameMap
+---@field maxi number
+---@field maxj number
+---@field mapAreas MapArea[][]
+GameMap = ClassSimple({
     Init = function(self)
         WARN("Starting map initialisation!")
         _ALERT("Playable Area:",PLAYABLE_AREA[1],PLAYABLE_AREA[2],PLAYABLE_AREA[3],PLAYABLE_AREA[4])
@@ -430,10 +549,6 @@ GameMap = Class({
         WARN("Map Area objects on a "..tostring(maxi).." by "..tostring(maxj).." grid")
         local mapAreas = {}
         self.mapAreas = mapAreas
-        local lc = 0
-        local nc = 0
-        local hc = 0
-        local ac = 0
         -- Generate MapArea passability
         for i = 1, maxi do
             local xOffset = minx + (i-1)*MAP_AREA_SIZE
@@ -490,6 +605,7 @@ GameMap = Class({
                 mapAreas[i][j]:TranslateComponents(landMatrix, navyMatrix, hoverMatrix, amphMatrix)
             end
         end
+
         -- Optional Logging
         WARN(
             "Initial Land Components: "..tostring(landMatrix.maxComponentNumber)..
@@ -512,8 +628,12 @@ GameMap = Class({
             ", Final Amph Components: "..tostring(amphMatrix.numComponents)
         )
     end,
+
+    --- Draws components.  Increment sparsity from 1 to draw less.
+    ---@param self GameMap
+    ---@param layer GenLayer
+    ---@param sparsity number
     DrawComponents = function(self, layer, sparsity)
-        -- Draws components.  Increment sparsity from 1 to draw less.
         ForkThread(
             function()
                 coroutine.yield(50)
@@ -537,6 +657,7 @@ GameMap = Class({
         )
         
     end,
+
     --[[
         TODO functions:
             zone/marker generation (inc edges),
@@ -546,6 +667,7 @@ GameMap = Class({
             closest marker/zone,
             component size.
     ]]
+    
 })
 
 local map = GameMap()
