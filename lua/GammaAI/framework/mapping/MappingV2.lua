@@ -64,6 +64,7 @@ ConnectivitySet = ClassSimple({
 ---@field matrix ConnectivitySet[]
 ---@field translation number[]
 ConnectivityMatrix = ClassSimple({
+
     Init = function(self)
         self.maxComponentNumber = 0
         self.matrix = {}
@@ -120,8 +121,8 @@ ConnectivityMatrix = ClassSimple({
 
     --- Inform the ConnectivityMatrix of a connection between two components. a and b must both be in the range [1,maxComponentNumber] inclusive, a ~= b
     ---@param self ConnectivityMatrix
-    ---@param a ConnectivitySet
-    ---@param b ConnectivitySet
+    ---@param a number
+    ---@param b number
     AddConnection = function(self, a, b)
         self.matrix[a]:Add(b)
         self.matrix[b]:Add(a)
@@ -163,17 +164,17 @@ ConnectivityMatrix = ClassSimple({
 ---@field passableNavy boolean | boolean[][]        # is a boolean if compressNavy is true
 ---@field passableHover boolean | boolean [][]      # is a boolean if compressHover is true
 ---@field passableAmph boolean | boolean[][]        # is a boolean if compressAmph is true
----@field componentLand ConnectivityMatrix
----@field componentNavy ConnectivityMatrix
----@field componentHover ConnectivityMatrix
----@field componentAmph ConnectivityMatrix
----@field negX number
----@field negY number
----@field posX number
----@field posZ number
+---@field componentLand number | number[][]         # is a number if compressLand is true
+---@field componentNavy number | number[][]         # is a number if compressNavy is true
+---@field componentHover number | number[][]        # is a number if compressHover is true
+---@field componentAmph number | number[][]         # is a number if compressAmph is true
+---@field negX MapArea
+---@field negZ MapArea
+---@field posX MapArea
+---@field posZ MapArea
 MapArea = ClassSimple({
 
-    ---Initialise this MapArea and generate layer passability
+    --- Initialise this MapArea and generate layer passability
     ---@param self MapArea
     ---@param xOffset number
     ---@param zOffset number
@@ -396,29 +397,29 @@ MapArea = ClassSimple({
     ---@param i number
     ---@param j number
     ---@param layer GenLayer
-    ---@return ConnectivityMatrix
+    ---@return number
     GetComponent = function(self, i, j, layer)
         if layer == LAYER_LAND then
             if self.compressLand then
-                return self.componentLand
+                return self.componentLand -- TODO: fix annotation
             else
                 return self.componentLand[i][j]
             end
         elseif layer == LAYER_NAVY then
             if self.compressNavy then
-                return self.componentNavy
+                return self.componentNavy -- TODO: fix annotation
             else
                 return self.componentNavy[i][j]
             end
         elseif layer == LAYER_HOVER then
             if self.compressHover then
-                return self.componentHover
+                return self.componentHover -- TODO: fix annotation
             else
                 return self.componentHover[i][j]
             end
         elseif layer == LAYER_AMPH then
             if self.compressAmph then
-                return self.componentAmph
+                return self.componentAmph -- TODO: fix annotation
             else
                 return self.componentAmph[i][j]
             end
@@ -441,12 +442,12 @@ MapArea = ClassSimple({
     --- Internal method; generic code for translating from provisional to final component numbers
     ---@param self MapArea
     ---@param compressed boolean
-    ---@param component number
+    ---@param component number | number[][]
     ---@param matrix ConnectivityMatrix
-    ---@return number
+    ---@return number | number[][]
     TranslateLayerComponents = function(self, compressed, component, matrix)
         if compressed then
-            return matrix:Translate(component)
+            return matrix:Translate(component) -- TODO: fix annotation
         else
             local maxi = self.maxi
             local maxj = self.maxj
@@ -461,10 +462,10 @@ MapArea = ClassSimple({
 
     --- A way to add neighbours to this MapArea.  Neighbours may be nil, for example at the map border.
     ---@param self MapArea
-    ---@param negX number
-    ---@param negZ number
-    ---@param posX number
-    ---@param posZ number
+    ---@param negX MapArea
+    ---@param negZ MapArea
+    ---@param posX MapArea
+    ---@param posZ MapArea
     AddNeighbors = function(self, negX, negZ, posX, posZ)
         self.negX = negX
         self.negZ = negZ
@@ -476,7 +477,7 @@ MapArea = ClassSimple({
     ---@param self MapArea
     ---@param sparsity number
     ---@param compress boolean
-    ---@param component ConnectivityMatrix
+    ---@param component number | number[][]
     DrawGenericComponents = function(self, sparsity, compress, component)
         local colours = { 'aa1f77b4', 'aaff7f0e', 'aa2ca02c', 'aad62728', 'aa9467bd', 'aa8c564b', 'aae377c2', 'aa7f7f7f', 'aabcbd22', 'aa17becf' }
         if compress then
